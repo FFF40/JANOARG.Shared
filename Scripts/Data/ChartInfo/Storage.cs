@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Serialization;
-using JANOARG.Chartmaker.UI;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -96,7 +95,6 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         [XmlRoot("ItemList")]
         [XmlInclude(typeof(CollectionProxy))]
-        [XmlInclude(typeof(RecentSong))]
         public class SerializeProxyList
         {
             [XmlElement("Item")]
