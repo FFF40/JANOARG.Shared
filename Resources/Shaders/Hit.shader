@@ -51,7 +51,7 @@ Shader "JANOARG/Styles/Default - Hit"
             {
                 // sample the texture
                 fixed4 col = tex2D(_MainTex, i.uv) * _Color;
-                col.a *= min(max(i.fogCoord.x, 0) * 1.2, 1);
+                col.a *= max(i.fogCoord.x, 0);
                 return col;
             }
             ENDCG
