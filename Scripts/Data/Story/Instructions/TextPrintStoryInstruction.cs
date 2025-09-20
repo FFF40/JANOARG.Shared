@@ -1,63 +1,88 @@
 using System;
 using System.Collections;
-using UnityEngine;
+using JANOARG.Client.Behaviors.Storyteller;
+using TMPro;
 
-[Serializable]
-public class TextPrintStoryInstruction : StoryInstruction 
+namespace JANOARG.Shared.Data.Story.Instructions
 {
-    public string Name => $"Say \"{Text}\"";
-    public string Text;
-
-    private int StopPoint;
-
-    public override void OnTextBuild(Storyteller teller)
+    [Serializable]
+    public class TextPrintStoryInstruction : StoryInstruction
     {
-        teller.DialogueLabel.text += Text;
-        teller.DialogueLabel.ForceMeshUpdate();
-        StopPoint = teller.DialogueLabel.textInfo.characterCount;
-    }
+        public string Text;
 
-    public override IEnumerator OnTextReveal(Storyteller teller)
-    {
-        bool isWait = false;
-        while (teller.CurrentCharacterIndex < StopPoint) 
+        private int _StopPoint;
+
+        public string name => $"Say \"{Text}\"";
+
+        public override void OnTextBuild(Storyteller teller)
         {
-            int index = teller.CurrentCharacterIndex;
-            var charInfo = teller.DialogueLabel.textInfo.characterInfo[index];
+            teller.DialogueLabel.text += Text;
+            teller.DialogueLabel.ForceMeshUpdate();
+            _StopPoint = teller.DialogueLabel.textInfo.characterCount;
+        }
 
-            float waitTime = teller.CharacterDuration;
-            switch (charInfo.character)
+        public override IEnumerator OnTextReveal(Storyteller teller)
+        {
+            var isWait = false;
+
+            while (teller.CurrentCharacterIndex < _StopPoint)
             {
-                case ',': case ';': case '.': case '?': case '!':
-                case ')': case ']': case '}':
-                    isWait = true;
-                    break;
-                case '’': case '”': case '\'': case '"':
-                    break;
-                default: 
-                    if (isWait)
-                    {
-                        waitTime *= 3;
-                        waitTime += 0.25f;
-                    }
-                    isWait = false;
-                    break;
-            }
-            while (teller.TimeBuffer < waitTime) yield return null;
-            teller.TimeBuffer -= waitTime;
+                int index = teller.CurrentCharacterIndex;
+                TMP_CharacterInfo charInfo = teller.DialogueLabel.textInfo.characterInfo[index];
 
-            if (charInfo.isVisible)
-            {
-                teller.CurrentVertexIndexes[charInfo.materialReferenceIndex] = charInfo.vertexIndex + 4;
-                teller.RegisterCoroutine(teller.currentRevealEffect.OnCharacterReveal(
-                    teller,
-                    teller.DialogueLabel,
-                    index,
-                    teller.TimeBuffer
-                ));
-            }
+                float waitTime = teller.CharacterDuration;
 
-            teller.CurrentCharacterIndex++;
+                switch (charInfo.character)
+                {
+                    case ',':
+                    case ';':
+                    case '.':
+                    case '?':
+                    case '!':
+                    case ')':
+                    case ']':
+                    case '}':
+                        isWait = true;
+
+                        break;
+
+                    case '’':
+                    case '”':
+                    case '\'':
+                    case '"':
+                        break;
+
+                    default:
+                        if (isWait)
+                        {
+                            waitTime *= 3;
+                            waitTime += 0.25f;
+                        }
+
+                        isWait = false;
+
+                        break;
+                }
+
+                while (teller.TimeBuffer < waitTime) yield return null;
+
+                teller.TimeBuffer -= waitTime;
+
+                if (charInfo.isVisible)
+                {
+                    teller.CurrentVertexIndexes[charInfo.materialReferenceIndex] = charInfo.vertexIndex + 4;
+
+                    teller.RegisterCoroutine(
+                        teller.CurrentRevealEffect.OnCharacterReveal(
+                            teller,
+                            teller.DialogueLabel,
+                            index,
+                            teller.TimeBuffer
+                        ));
+                }
+
+                teller.CurrentCharacterIndex++;
+            }
         }
     }
 }

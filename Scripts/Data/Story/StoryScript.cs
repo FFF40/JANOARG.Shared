@@ -1,17 +1,18 @@
-
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using JANOARG.Shared.Data.Story.Instructions;
 using UnityEngine;
 
-public class StoryScript : ScriptableObject
+namespace JANOARG.Shared.Data.Story
 {
-    public List<StoryChunk> Chunks = new();
-}
+    public class StoryScript : ScriptableObject
+    {
+        public List<StoryChunk> Chunks = new();
+    }
 
-[Serializable]
-public class StoryChunk
-{
-    [SerializeReference]
-    public List<StoryInstruction> Instructions = new();
+    [Serializable]
+    public class StoryChunk
+    {
+        [SerializeReference] public List<StoryInstruction> Instructions = new();
+    }
 }
