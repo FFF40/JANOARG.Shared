@@ -124,10 +124,13 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             int greatestCommonDivisor = GreatestCommonDivisor(a.Denominator, b.Denominator);
 
+            int aDenoBase = a.Denominator / greatestCommonDivisor;
+            int bDenoBase = b.Denominator / greatestCommonDivisor;
+
             return new BeatPosition(
                 a.Number + b.Number,
-                b.Denominator / greatestCommonDivisor * a.Numerator + a.Denominator / greatestCommonDivisor * b.Numerator,
-                a.Denominator / greatestCommonDivisor * b.Denominator
+                a.Numerator * bDenoBase + b.Numerator * aDenoBase,
+                aDenoBase * b.Denominator
             );
         }
 
@@ -144,10 +147,13 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             int greatestCommonDivisor = GreatestCommonDivisor(a.Denominator, b.Denominator);
 
+            int aDenoBase = a.Denominator / greatestCommonDivisor;
+            int bDenoBase = b.Denominator / greatestCommonDivisor;
+
             return new BeatPosition(
-                a.Number - b.Number,
-                b.Denominator / greatestCommonDivisor * a.Numerator - a.Denominator / greatestCommonDivisor * b.Numerator,
-                a.Denominator / greatestCommonDivisor * b.Denominator
+                a.Number + b.Number,
+                a.Numerator * bDenoBase - b.Numerator * aDenoBase,
+                aDenoBase * b.Denominator
             );
         }
 
