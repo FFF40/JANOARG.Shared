@@ -22,20 +22,34 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public T Get<T>(string key, T fallback)
         {
-            if (values.ContainsKey(key)) 
+            try 
             {
-                return (T)values[key];
+                if (values.ContainsKey(key)) 
+                {
+                    return (T)values[key];
+                }
+                else return fallback;
             }
-            else return fallback;
+            catch (InvalidCastException)
+            {
+                return fallback;
+            }
         }
         public T[] Get<T>(string key, T[] fallback)
         {
-            if (values.ContainsKey(key)) 
+            try 
             {
-                if (values[key] is object[]) return ((object[])values[key]).OfType<T>().ToArray();
-                return (T[])values[key];
+                if (values.ContainsKey(key)) 
+                {
+                    if (values[key] is object[]) return ((object[])values[key]).OfType<T>().ToArray();
+                    return (T[])values[key];
+                }
+                else return fallback;
             }
-            else return fallback;
+            catch (InvalidCastException)
+            {
+                return fallback;
+            }
         }
 
         public void Set(string key, object value)
