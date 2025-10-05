@@ -1,5 +1,5 @@
 using System.IO;
-using JANOARG.Shared.Data.Story;
+using JANOARG.Client.Data.Story;
 using UnityEditor.AssetImporters;
 
 namespace JANOARG.Shared.Data.Files.Editor

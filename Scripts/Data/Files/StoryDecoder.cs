@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using JANOARG.Shared.Data.Story;
-using JANOARG.Shared.Data.Story.Instructions;
+using JANOARG.Client.Data.Story;
+using JANOARG.Client.Data.Story.Instructions;
 using UnityEditor.Callbacks;
 #if UNITY_EDITOR
 using UnityEngine;
