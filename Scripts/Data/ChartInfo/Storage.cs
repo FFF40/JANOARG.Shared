@@ -8,7 +8,62 @@ using UnityEngine.Events;
 
 namespace JANOARG.Shared.Data.ChartInfo
 {
-    public class Storage 
+
+    [XmlInclude(typeof(CollectionProxy))]
+    public abstract class SerializeProxyList
+    {
+        [XmlElement("Item")]
+        public List<SerializeProxy> Items = new List<SerializeProxy>();
+    }
+
+    public class SerializeProxy
+    {
+        [XmlAttribute]
+        public string Key;
+        public object Value;
+        public static implicit operator SerializeProxy(KeyValuePair<string, object> item)
+        {
+            SerializeProxy proxy = new SerializeProxy
+            {
+                Key = item.Key,
+                Value = item.Value,
+            };
+            if (proxy.Value is Array) proxy.Value = new CollectionProxy(proxy.Value as Array);
+            return proxy;
+        }
+
+        public static implicit operator KeyValuePair<string, object>(SerializeProxy item)
+        {
+            object value = item.Value;
+            if (value is CollectionProxy) value = ((CollectionProxy)value).Value;
+            KeyValuePair<string, object> pair = new KeyValuePair<string, object>(item.Key, value);
+            return pair;
+        }
+
+        public void AddPair(Dictionary<string, object> dict)
+        {
+            KeyValuePair<string, object> pair = this;
+            dict.TryAdd(pair.Key, pair.Value);
+        }
+    }
+
+    public class CollectionProxy
+    {
+        [XmlElement("Item")]
+        public object[] Value;
+
+        public CollectionProxy()
+        {
+        }
+
+        public CollectionProxy(Array array)
+        {
+            Value = new object[array.Length];
+            for (int a = 0; a < array.Length; a++) Value[a] = array.GetValue(a);
+        }
+    }
+    
+    public class Storage<TStore> where TStore : SerializeProxyList, new()
     {
         public Dictionary<string, object> values = new Dictionary<string, object>();
         public string                     SaveName;
@@ -46,67 +101,12 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public UnityEvent OnLoad = new UnityEvent();
 
-        public class SerializeProxy
-        {
-            [XmlAttribute]
-            public string Key;
-            public object Value;
-            public static implicit operator SerializeProxy(KeyValuePair<string, object> item)
-            {
-                SerializeProxy proxy = new SerializeProxy
-                {
-                    Key = item.Key,
-                    Value = item.Value,
-                };
-                if (proxy.Value is Array) proxy.Value = new CollectionProxy(proxy.Value as Array);
-                return proxy;
-            }
-
-            public static implicit operator KeyValuePair<string, object>(SerializeProxy item)
-            {
-                object value = item.Value;
-                if (value is CollectionProxy) value = ((CollectionProxy)value).Value;
-                KeyValuePair<string, object> pair = new KeyValuePair<string, object>(item.Key, value);
-                return pair;
-            }
-
-            public void AddPair(Dictionary<string, object> dict)
-            {
-                KeyValuePair<string, object> pair = this;
-                dict.TryAdd(pair.Key, pair.Value);
-            }
-        }
-
-        public class CollectionProxy
-        {
-            [XmlElement("Item")]
-            public object[] Value;
-
-            public CollectionProxy()
-            {
-            }
-
-            public CollectionProxy(Array array)
-            {
-                Value = new object[array.Length];
-                for (int a = 0; a < array.Length; a++) Value[a] = array.GetValue(a);
-            }
-        }
-
-        [XmlRoot("ItemList")]
-        [XmlInclude(typeof(CollectionProxy))]
-        public class SerializeProxyList
-        {
-            [XmlElement("Item")]
-            public List<SerializeProxy> Items = new List<SerializeProxy>();
-        }
-
         public void Save()
         {
-            SerializeProxyList list = new SerializeProxyList();
+            TStore list = new TStore();
             foreach (KeyValuePair<string, object> pair in values) if (pair.Value != null) list.Items.Add(pair);
 
-            XmlSerializer serializer = new XmlSerializer(typeof(SerializeProxyList));
+            XmlSerializer serializer = new XmlSerializer(typeof(TStore));
             FileStream fs;
 
             fs = new FileStream(SaveName + ".jas", FileMode.Create);
@@ -121,14 +121,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public void Load()
         {
-            SerializeProxyList list = new SerializeProxyList();
+            TStore list = new TStore();
 
-            XmlSerializer serializer = new XmlSerializer(typeof(SerializeProxyList));
+            XmlSerializer serializer = new XmlSerializer(typeof(TStore));
             FileStream fs = null;
             try 
             {
                 fs = new FileStream(SaveName + ".jas", FileMode.OpenOrCreate);
-                list = (SerializeProxyList)serializer.Deserialize(fs);
+                list = (TStore)serializer.Deserialize(fs);
                 fs.Close();
             }
             catch (Exception e)
@@ -137,7 +137,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 {
                     fs?.Close();
                     fs = new FileStream(SaveName + ".backup.jas", FileMode.OpenOrCreate);
-                    list = (SerializeProxyList)serializer.Deserialize(fs);
+                    list = (TStore)serializer.Deserialize(fs);
                     fs.Close();
                 }
                 catch (Exception ee)
