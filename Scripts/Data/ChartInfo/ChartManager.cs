@@ -307,8 +307,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             Original = original;
             Current = current;
-            
-            if (CurrentMesh == null) 
+
+            if (CurrentMesh == null)
                 CurrentMesh = new Mesh();
 
             var stepCount = 0;
@@ -318,15 +318,10 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < Current.LaneSteps.Count; a++)
             {
-                if (Steps.Count <= a) 
+                if (Steps.Count <= a)
                     Steps.Add(new LaneStepManager());
 
-                LaneStep step = null;
-                
-                if (Steps != null && Steps.Count == Current.LaneSteps.Count)
-                    step = Steps[a].CurrentStep;
-                
-                step ??= (LaneStep)Current.LaneSteps[a].GetStoryboardableObject(pos);
+                LaneStep step = (LaneStep)Current.LaneSteps[a].GetStoryboardableObject(pos);
 
                 if (step.Offset != Steps[a].CurrentStep?.Offset)
                 {
