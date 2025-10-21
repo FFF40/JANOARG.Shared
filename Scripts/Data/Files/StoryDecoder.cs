@@ -5,9 +5,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using JANOARG.Client.Data.Story;
 using JANOARG.Client.Data.Story.Instructions;
-using UnityEditor.Callbacks;
-#if UNITY_EDITOR
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor.Callbacks;
 #endif
 
 namespace JANOARG.Shared.Data.Files
