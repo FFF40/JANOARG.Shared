@@ -151,7 +151,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             int bDenoBase = b.Denominator / greatestCommonDivisor;
 
             return new BeatPosition(
-                a.Number + b.Number,
+                a.Number - b.Number,
                 a.Numerator * bDenoBase - b.Numerator * aDenoBase,
                 aDenoBase * b.Denominator
             );
