@@ -48,13 +48,32 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [Serializable]
-    public class Storyboard : IList<Timestamp>
+    public class Storyboard : IList, IList<Timestamp>
     {
         public  List<Timestamp>              Timestamps = new();
         private Dictionary<int, Timestamp[]> _TypeCache = new();
 
         public int Count => Timestamps.Count;
+
         public bool IsReadOnly => false;
+
+        public bool IsFixedSize => (Timestamps as IList).IsFixedSize;
+
+        public bool IsSynchronized => (Timestamps as IList).IsSynchronized;
+
+        public object SyncRoot => (Timestamps as IList).SyncRoot;
+
+        object IList.this[int index] {
+            get
+            {
+                return Timestamps[index];
+            }
+            set
+            {
+                (Timestamps as IList)[index] = value;
+                InvalidateCache();
+            }
+        }
         public Timestamp this[int index] {
             get
             {
@@ -71,7 +90,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             Timestamps.Add(timestamp);
             Timestamps.Sort((x, y) => x.Offset.CompareTo(y.Offset));
 
-            _TypeCache.Clear();
+            InvalidateCache();
         }
         
         public void InvalidateCache()
@@ -138,6 +157,38 @@ namespace JANOARG.Shared.Data.ChartInfo
         IEnumerator IEnumerable.GetEnumerator()
         {
             return Timestamps.GetEnumerator();
+        }
+
+        public int Add(object value)
+        {
+            int result = (Timestamps as IList).Add(value);
+            InvalidateCache();
+            return result;
+        }
+
+        public bool Contains(object value)
+        {
+            return Contains((Timestamp)value);
+        }
+
+        public int IndexOf(object value)
+        {
+            return IndexOf((Timestamp)value);
+        }
+
+        public void Insert(int index, object value)
+        {
+            Insert(index, (Timestamp)value);
+        }
+
+        public void Remove(object value)
+        {
+            Remove((Timestamp)value);
+        }
+
+        public void CopyTo(Array array, int index)
+        {
+            CopyTo((Timestamp[])array, index);
         }
     }
 
