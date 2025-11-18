@@ -65,12 +65,13 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < CurrentChart.Lanes.Count; a++)
             {
-                var lane = (Lane)CurrentChart.Lanes[a].GetStoryboardableObject(pos);
+                var original = CurrentChart.Lanes[a];
+                var current = (Lane)original.GetStoryboardableObject(pos);
 
                 if (Lanes.Count <= a)
-                    Lanes.Add(new LaneManager(lane, time, pos, this));
+                    Lanes.Add(new LaneManager(original, current, time, pos, this));
                 else
-                    Lanes[a].Update(lane, time, pos, this);
+                    Lanes[a].Update(original, current, time, pos, this);
             }
 
             while (Lanes.Count > CurrentChart.Lanes.Count)
@@ -277,7 +278,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class LaneManager
     {
-        public Lane                   CurrentLane;
+        public Lane                   Original;
+        public Lane                   Current;
         public List<LaneStepManager>  Steps       = new();
         public List<HitObjectManager> Objects     = new();
         public Mesh                   CurrentMesh = new();
@@ -296,16 +298,17 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
-        public LaneManager(Lane init, float time, float pos, ChartManager main)
+        public LaneManager(Lane original, Lane current, float time, float pos, ChartManager main)
         {
-            Update(init, time, pos, main);
+            Update(original, current, time, pos, main);
         }
 
-        public void Update(Lane data, float time, float pos, ChartManager main)
+        public void Update(Lane original, Lane current, float time, float pos, ChartManager main)
         {
-            CurrentLane = data;
-            
-            if (CurrentMesh == null) 
+            Original = original;
+            Current = current;
+
+            if (CurrentMesh == null)
                 CurrentMesh = new Mesh();
 
             var stepCount = 0;
@@ -313,17 +316,12 @@ namespace JANOARG.Shared.Data.ChartInfo
             float offset = float.NaN;
             CurrentSpeed = main.CurrentSpeed;
 
-            for (var a = 0; a < CurrentLane.LaneSteps.Count; a++)
+            for (var a = 0; a < Current.LaneSteps.Count; a++)
             {
-                if (Steps.Count <= a) 
+                if (Steps.Count <= a)
                     Steps.Add(new LaneStepManager());
 
-                LaneStep step = null;
-                
-                if (Steps != null && Steps.Count == CurrentLane.LaneSteps.Count)
-                    step = Steps[a].CurrentStep;
-                
-                step ??= (LaneStep)CurrentLane.LaneSteps[a].GetStoryboardableObject(pos);
+                LaneStep step = (LaneStep)Current.LaneSteps[a].GetStoryboardableObject(pos);
 
                 if (step.Offset != Steps[a].CurrentStep?.Offset)
                 {
@@ -348,8 +346,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                 offset = Steps[a].Offset;
             }
 
-            while (Steps.Count > CurrentLane.LaneSteps.Count) 
-                Steps.RemoveAt(CurrentLane.LaneSteps.Count);
+            while (Steps.Count > Current.LaneSteps.Count) 
+                Steps.RemoveAt(Current.LaneSteps.Count);
 
             var index = 0;
             var verts = new Vector3[stepCount * 2];
@@ -465,11 +463,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             main.ActiveLaneVerts += verts.Length;
             main.ActiveLaneTris += CurrentMesh.triangles.Length;
 
-            FinalPosition = CurrentLane.Position;
-            FinalRotation = Quaternion.Euler(CurrentLane.Rotation);
+            FinalPosition = Current.Position;
+            FinalRotation = Quaternion.Euler(Current.Rotation);
 
-            if (!string.IsNullOrEmpty(CurrentLane.Group) && main.Groups.ContainsKey(CurrentLane.Group))
-                main.Groups[CurrentLane.Group]
+            if (!string.IsNullOrEmpty(Current.Group) && main.Groups.ContainsKey(Current.Group))
+                main.Groups[Current.Group]
                     .Get(ref FinalPosition, ref FinalRotation);
 
             StartPosLocal = StartPos = verts[stepCount * 2 - 2] - Vector3.forward * CurrentDistance;
@@ -479,20 +477,21 @@ namespace JANOARG.Shared.Data.ChartInfo
 
 
 
-            for (var a = 0; a < CurrentLane.Objects.Count; a++)
+            for (var a = 0; a < Current.Objects.Count; a++)
             {
-                var hit = (HitObject)CurrentLane.Objects[a]
-                    .GetStoryboardableObject(pos);
+                var originalHit = Original.Objects[a];
+                var currentHit = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
 
-                if (Objects.Count <= a) Objects.Add(new HitObjectManager(hit, time, this, main));
+                if (Objects.Count <= a) Objects.Add(
+                    new HitObjectManager(originalHit, currentHit, time, this, main)
+                );
                 else
-                    Objects[a]
-                        .Update(hit, time, this, main);
+                    Objects[a].Update(originalHit, currentHit, time, this, main);
             }
 
-            while (Objects.Count > CurrentLane.Objects.Count)
+            while (Objects.Count > Current.Objects.Count)
             {
-                Objects.RemoveAt(CurrentLane.Objects.Count);
+                Objects.RemoveAt(Current.Objects.Count);
             }
         }
 
@@ -601,7 +600,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 if (stepCount == 0) return null;
                 
                 var firstStep = Steps[0];
-                var firstLaneStep = CurrentLane.LaneSteps[0];
+                var firstLaneStep = Current.LaneSteps[0];
                 return new LanePosition
                 {
                     StartPosition = firstLaneStep.StartPointPosition,
@@ -617,7 +616,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (sec < firstStepOffset)
             {
                 var firstStep = Steps[0];
-                var firstLaneStep = CurrentLane.LaneSteps[0];
+                var firstLaneStep = Current.LaneSteps[0];
                 return new LanePosition
                 {
                     StartPosition = firstLaneStep.StartPointPosition,
@@ -630,7 +629,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (sec > lastStepOffset)
             {
                 var lastStep = Steps[stepCount - 1];
-                var lastLaneStep = CurrentLane.LaneSteps[stepCount - 1];
+                var lastLaneStep = Current.LaneSteps[stepCount - 1];
                 return new LanePosition
                 {
                     StartPosition = lastLaneStep.StartPointPosition,
@@ -893,7 +892,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class HitObjectManager
     {
-        public HitObject CurrentHit;
+        public HitObject Original;
+        public HitObject Current;
         public float     TimeStart;
         public float     TimeEnd;
 
@@ -906,19 +906,20 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public Mesh HoldMesh;
 
-        public HitObjectManager(HitObject data, float time, LaneManager lane, ChartManager main)
+        public HitObjectManager(HitObject original, HitObject current, float time, LaneManager lane, ChartManager main)
         {
-            Update(data, time, lane, main);
+            Update(original, current, time, lane, main);
         }
 
-        public void Update(HitObject data, float time, LaneManager lane, ChartManager main)
+        public void Update(HitObject original, HitObject current, float time, LaneManager lane, ChartManager main)
         {
-            CurrentHit = data;
-            TimeStart = main.Song.Timing.ToSeconds(data.Offset);
+            Original = original;
+            Current = current;
+            TimeStart = main.Song.Timing.ToSeconds(current.Offset);
             
             // Calculate TimeEnd only once and cache the comparison
-            bool isHoldNote = data.HoldLength > 0;
-            TimeEnd = isHoldNote ? main.Song.Timing.ToSeconds(data.Offset + data.HoldLength) : TimeStart;
+            bool isHoldNote = current.HoldLength > 0;
+            TimeEnd = isHoldNote ? main.Song.Timing.ToSeconds(current.Offset + current.HoldLength) : TimeStart;
 
             // Destroy hold mesh early if it exists
             if (HoldMesh) 
@@ -934,9 +935,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             // Handle remaining counts (only when time <= TimeStart)
             if (time <= TimeStart)
             {
-                main.HitObjectsRemaining[(int)data.Type]++;
+                main.HitObjectsRemaining[(int)current.Type]++;
                 
-                if (data.Flickable) 
+                if (current.Flickable) 
                     main.FlicksRemaining++;
             }
 
@@ -945,9 +946,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             Vector3 forwardedOffset = Vector3.forward * pos.Offset;
             
             // Cache data.Position to avoid multiple property access
-            float dataPosition = data.Position;
+            float dataPosition = current.Position;
             StartPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, dataPosition) + forwardedOffset;
-            EndPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, dataPosition + data.Length) + forwardedOffset;
+            EndPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, dataPosition + current.Length) + forwardedOffset;
 
             Position = (StartPos + EndPos) * 0.5f; // Multiply by 0.5f is slightly faster than divide by 2
             Rotation = Quaternion.LookRotation(EndPos - StartPos) * Quaternion.Euler(0, 90, 0);
@@ -958,7 +959,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             
             // Generate hold mesh only if needed
             HoldMesh = (isInRange && isHoldNote) 
-                ? lane.GetPartOfLane(Mathf.Max(TimeStart, time), TimeEnd, dataPosition, data.Length) 
+                ? lane.GetPartOfLane(Mathf.Max(TimeStart, time), TimeEnd, dataPosition, current.Length) 
                 : null;
 
             // Update counters
