@@ -448,10 +448,12 @@ namespace JANOARG.Shared.Data.Files
             if (slashPos >= 0)
             {
                 int bPos = number.IndexOf('b');
+                int wholePart = ParseInt(number[..bPos]);
+                int sign = number[0] == '-' ? -1 : 1;
 
                 return new BeatPosition(
-                    ParseInt(number[..bPos]),
-                    ParseInt(number[(bPos + 1)..slashPos]),
+                    wholePart,
+                    ParseInt(number[(bPos + 1)..slashPos]) * sign,
                     ParseInt(number[(slashPos + 1)..])
                 );
             }
