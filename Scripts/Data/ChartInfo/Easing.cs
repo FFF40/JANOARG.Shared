@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 
@@ -61,6 +62,44 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             callback(1);
         }
+
+        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
+        {
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                callback(a, easeFunc, mode);
+
+                yield return null;
+            }
+
+            callback(1, easeFunc, mode);
+        }
+        
+        // Task Async alternative
+        public static async Task AnimateTask(float duration, Action<float> callback)
+        {
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                callback(a);
+                await Task.Yield();
+            }
+
+            callback(1);
+        }
+
+        public static async Task AnimateTask(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
+        {
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                callback(a, easeFunc, mode);
+
+                await Task.Yield();
+            }
+
+            callback(1, easeFunc, mode);
+        }
+        
+        
 
         public static IEnumerator AnimateText(TMP_Text text, float duration, float xOffset, Action<TMP_CharacterInfo, float> letterCallback)
         {
