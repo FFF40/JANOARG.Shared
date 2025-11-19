@@ -146,7 +146,73 @@ namespace JANOARG.Shared.Data.ChartInfo
                 elapsedTime += Time.deltaTime;
             }
         }
+        
+        private const float _PI      = Mathf.PI;
+        private const float _PI_HALF = _PI / 2;
+        private const float _EPSILON  = 0.000001f;
+        
+        private const float _BACK_OVERSHOOT        = 1.70158f;
+        private const float _BACK_SCALED_OVERSHOOT = _BACK_OVERSHOOT * 1.525f;
 
+        private const float _ELASTIC_PERIOD_IN_OUT_INNER = 11.125f;
+
+        private const float _ELASTIC_PERIOD     = _PI * 2 / 3f;
+        private const float _ELASTIC_IN_OFFSET  = 10.75f;
+        private const float _ELASTIC_OUT_OFFSET = 0.75f;
+
+        private const float _BOUNCE_CONSTANT  = 7.5625f;
+        private const float _BOUNCE_THRESHOLD = 2.75f;
+        
+        private static float FastSin(float x)
+        {
+            const float B = 4f / _PI;
+            const float C = -4f / (_PI * _PI);
+                
+            float y = B * x + C * x * Mathf.Abs(x);
+                
+            // Optional extra precision (at some performance cost)
+            const float P = 0.225f;
+            y = P * (y * Mathf.Abs(y) - y) + y;
+                
+            return y;
+        }
+            
+        private static float FastCos(float x)
+        {
+            // Cos in a nutshell: Sine, just translated back by 90 degrees (but we're using rad so yeah)
+            return FastSin(_PI_HALF - x);
+        }
+
+        // Fast power approximation for base 2
+        private static float FastPow2(float p)
+        {
+            float offset = (p < 0) ? 1.0f : 0.0f;
+            float clipp = (p < -126) ? -126.0f : p;
+            int w = (int)clipp;
+            float z = clipp - w + offset;
+        
+            // This is a approximation of 2^z in range [0,1)
+            // Using bit shifting of constants I cannot comprehend (it's the same kind of workaround to do division in assembly)
+            return BitConverter.Int32BitsToSingle(
+                (int)((1 << 23) * (clipp + 121.2740575f + 27.7280233f / (4.84252568f - z) - 1.49012907f * z)));
+        }
+
+        // Fast power function for any base
+        private static float FastPow(float a, float b)
+        {
+            // Logarithm shouldn't be costly, I think?
+            return FastPow2(b * Mathf.Log(a, 2));
+        }
+        
+        // Fast approximate equality check
+        private static bool FastApproximately(float a, float b = 1f)
+        {
+            // For our easing functions, we typically compare with 1 or 0
+            // Using subtraction is faster than Mathf.Abs for this case
+            float diff = a - b;
+            return diff is < _EPSILON and > -_EPSILON;
+        }
+        
         public static Ease[] sEases;
 
         // We will reduce as much external calls as possible,
@@ -164,9 +230,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             sEases[(int)EaseFunction.Sine] = new Ease
             {
-                In = (x) => 1 - Mathf.Cos(x * Mathf.PI / 2),
-                Out = (x) => Mathf.Sin(x * Mathf.PI / 2),
-                InOut = (x) => (1 - Mathf.Cos(x * Mathf.PI)) / 2
+                In = (x) => 1 - FastCos(x * _PI / 2),
+                Out = (x) => FastSin(x * _PI / 2),
+                InOut = (x) => (1 - FastCos(x * _PI)) / 2
             };
 
             sEases[(int)EaseFunction.Quadratic] = new Ease
@@ -211,17 +277,17 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 In = (x) => x == 0
                     ? 0
-                    : Mathf.Pow(2, 10 * x - 10) - 0.0009765625f * (1 - x),
-                Out = (x) => Mathf.Approximately(x, 1)
+                    : FastPow(2, 10 * x - 10) - 0.0009765625f * (1 - x),
+                Out = (x) => FastApproximately(x, 1)
                     ? 1
-                    : 1 - Mathf.Pow(2, -10 * x) + 0.0009765625f * x,
+                    : 1 - FastPow(2, -10 * x) + 0.0009765625f * x,
                 InOut = (x) => x == 0
                     ? 0
-                    : Mathf.Approximately(x, 1)
+                    : FastApproximately(x, 1)
                         ? 1
                         : x < 0.5
-                            ? Mathf.Pow(2, 20 * x - 10) / 2 - 0.0009765625f * (1 - x)
-                            : (2 - Mathf.Pow(2, -20 * x + 10)) / 2 + 0.0009765625f * x
+                            ? FastPow(2, 20 * x - 10) / 2 - 0.0009765625f * (1 - x)
+                            : (2 - FastPow(2, -20 * x + 10)) / 2 + 0.0009765625f * x
             };
 
             sEases[(int)EaseFunction.Circle] = new Ease
@@ -235,66 +301,40 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             sEases[(int)EaseFunction.Back] = new Ease
             {
-                In = (x) =>
-                {
-                    const float OVERSHOOT = 1.70158f;
-
-                    return 2.70158f * x * x * x - OVERSHOOT * x * x;
-                },
-                Out = (x) =>
-                {
-                    const float OVERSHOOT = 1.70158f;
-
-                    return 1 + 2.70158f * ((x - 1) * (x - 1) * (x - 1)) + OVERSHOOT * ((x - 1) * (x - 1));
-                },
-                InOut = (x) =>
-                {
-                    const float OVERSHOOT = 1.70158f;
-                    const float SCALED_OVERSHOOT = OVERSHOOT * 1.525f;
-
-                    return x < 0.5f
-                        ? ((2 * x) * (2 * x)) * ((SCALED_OVERSHOOT + 1) * 2 * x - SCALED_OVERSHOOT) / 2
-                        : (((2 * x - 2) * (2 * x - 2))* ((SCALED_OVERSHOOT + 1) * (x * 2 - 2) + SCALED_OVERSHOOT) + 2) / 2;
-                }
+                In = (x) => 2.70158f * x * x * x - _BACK_OVERSHOOT * x * x,
+                Out = (x) => 1 + 2.70158f * ((x - 1) * (x - 1) * (x - 1)) + _BACK_OVERSHOOT * ((x - 1) * (x - 1)),
+                InOut = (x) => x < 0.5f
+                    ? ((2 * x) * (2 * x)) * ((_BACK_SCALED_OVERSHOOT + 1) * 2 * x - _BACK_SCALED_OVERSHOOT) / 2
+                    : (((2 * x - 2) * (2 * x - 2))* ((_BACK_SCALED_OVERSHOOT + 1) * (x * 2 - 2) + _BACK_SCALED_OVERSHOOT) + 2) / 2
             };
 
             sEases[(int)EaseFunction.Elastic] = new Ease
             {
                 In = (x) =>
                 {
-                    const float PERIOD = Mathf.PI * 2 / 3;
-
                     if (x == 0) return 0;
-                    if (Mathf.Approximately(x, 1)) return 1;
+                    if (FastApproximately(x, 1)) return 1;
 
-                    return -Mathf.Pow(2, 10 * x - 10) * Mathf.Sin((x * 10 - 10.75f) * PERIOD);
+                    return -FastPow(2, 10 * x - 10) * Mathf.Sin((x * 10 - _ELASTIC_IN_OFFSET) * _ELASTIC_PERIOD);
                 },
                 Out = (x) =>
                 {
-                    const float PERIOD = Mathf.PI * 2 / 3;
 
-                    if (x == 0)
-                        return 0;
+                    if (x == 0) return 0;
 
-                    if (Mathf.Approximately(x, 1))
-                        return 1;
+                    if (FastApproximately(x, 1)) return 1;
 
-                    return Mathf.Pow(2, -10 * x) * Mathf.Sin((x * 10 - 0.75f) * PERIOD) + 1;
+                    return FastPow(2, -10 * x) * Mathf.Sin((x * 10 - _ELASTIC_OUT_OFFSET) * _ELASTIC_PERIOD) + 1;
                 },
                 InOut = (x) =>
                 {
-                    const float PERIOD = Mathf.PI * 2 / 4.5f;
 
-                    if (x == 0)
-                        return 0;
+                    if (x == 0) return 0;
+                    if (FastApproximately(x, 1)) return 1;
 
-                    if (Mathf.Approximately(x, 1))
-                        return 1;
+                    if (x < 0.5) return -(FastPow(2, 20 * x - 10) * Mathf.Sin((20 * x - _ELASTIC_PERIOD_IN_OUT_INNER) * _ELASTIC_PERIOD)) / 2;
 
-                    if (x < 0.5)
-                        return -(Mathf.Pow(2, 20 * x - 10) * Mathf.Sin((20 * x - 11.125f) * PERIOD)) / 2;
-
-                    return Mathf.Pow(2, -20 * x + 10) * Mathf.Sin((20 * x - 11.125f) * PERIOD) / 2 + 1;
+                    return FastPow(2, -20 * x + 10) * Mathf.Sin((20 * x - _ELASTIC_PERIOD_IN_OUT_INNER) * _ELASTIC_PERIOD) / 2 + 1;
                 }
             };
 
@@ -303,20 +343,18 @@ namespace JANOARG.Shared.Data.ChartInfo
                 In = (x) => 1 - Get(1 - x, EaseFunction.Bounce, EaseMode.Out),
                 Out = (x) =>
                 {
-                    const float BOUNCE_CONSTANT = 7.5625f;
-                    const float BOUNCE_THRESHOLD = 2.75f;
 
-                    if (x < 1 / BOUNCE_THRESHOLD)
-                        return BOUNCE_CONSTANT * (x * x);
+                    if (x < 1 / _BOUNCE_THRESHOLD)
+                        return _BOUNCE_CONSTANT * (x * x);
 
 
-                    if (x < 2 / BOUNCE_THRESHOLD)
-                        return BOUNCE_CONSTANT * (x -= 1.5f / BOUNCE_THRESHOLD) * x + 0.75f;
+                    if (x < 2 / _BOUNCE_THRESHOLD)
+                        return _BOUNCE_CONSTANT * (x -= 1.5f / _BOUNCE_THRESHOLD) * x + 0.75f;
 
-                    if (x < 2.5 / BOUNCE_THRESHOLD)
-                        return BOUNCE_CONSTANT * (x -= 2.25f / BOUNCE_THRESHOLD) * x + 0.9375f;
+                    if (x < 2.5 / _BOUNCE_THRESHOLD)
+                        return _BOUNCE_CONSTANT * (x -= 2.25f / _BOUNCE_THRESHOLD) * x + 0.9375f;
 
-                    return BOUNCE_CONSTANT * (x -= 2.625f / BOUNCE_THRESHOLD) * x + 0.984375f;
+                    return _BOUNCE_CONSTANT * (x -= 2.625f / _BOUNCE_THRESHOLD) * x + 0.984375f;
                 },
                 InOut = (x) => x < 0.5
                     ? (1 - Get(1 - 2 * x, EaseFunction.Bounce, EaseMode.Out)) / 2
@@ -369,6 +407,15 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private readonly float[] _Samples;
 
+        private const float _EPSILON = 1e-6f;
+
+        // FIXME: Can't be bothered to move the method out of the class scope
+        private static bool FastApproximately(float a, float b = 1f)
+        {
+            float diff = a - b;
+            return diff is < _EPSILON and > -_EPSILON;
+        }
+
         public CubicBezierEaseDirective(Vector2 point1, Vector2 point2)
         {
             Validate(point1);
@@ -398,7 +445,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public float Get(float x)
         {
-            if (x == 0 || Mathf.Approximately(x, 1)) return x;
+            if (x == 0 || FastApproximately(x, 1)) return x;
 
             int nIndex = Array.FindIndex(_Samples, n => n > x);
             nIndex = Math.Max(nIndex, 1);
@@ -462,7 +509,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 float currentX = GetBezier(initialGuess, Point1.x, Point2.x);
 
-                if (Mathf.Approximately(targetX, currentX))
+                if (FastApproximately(targetX, currentX))
                     return initialGuess;
 
                 initialGuess -= (currentX - targetX) / slope;
