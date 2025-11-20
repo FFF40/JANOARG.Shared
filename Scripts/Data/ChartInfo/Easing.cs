@@ -78,22 +78,25 @@ namespace JANOARG.Shared.Data.ChartInfo
         // Task Async alternative
         public static async Task AnimateTask(float duration, Action<float> callback)
         {
-            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            float a = 0;
+            while (a < 1)
             {
                 callback(a);
-                await Task.Yield();
+                await Task.Yield(); // return next frame
+                a += Time.deltaTime / duration;
             }
-
-            callback(1);
+            callback(1f);
         }
+
 
         public static async Task AnimateTask(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
         {
-            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            float a = 0f;
+            while (a < 1)
             {
                 callback(a, easeFunc, mode);
-
                 await Task.Yield();
+                a += Time.deltaTime / duration;
             }
 
             callback(1, easeFunc, mode);
