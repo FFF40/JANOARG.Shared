@@ -50,6 +50,27 @@ namespace JANOARG.Shared.Data.ChartInfo
             };
         }
 
+        public class Presets
+        {
+            public static float GetDelayedEase(float x, float delay, float scale, EaseFunction func, EaseMode mode) =>
+                Ease.Get(Mathf.Clamp01(x * scale - delay), func, mode);
+            
+            public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                (1 - Get(interpolator, easeFunc, mode)) * from + Get(interpolator, easeFunc, mode) * to;
+            
+            public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                from * (1 - Get(interpolator, easeFunc, mode));
+            
+            public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                to * Get(interpolator, easeFunc, mode);
+            
+            public static float SharpDropEase(float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                (1 - Get(interpolator, easeFunc, mode)) * (1 - Get(interpolator, easeFunc, mode));
+            
+            public static float Snap(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                (int)interpolator == 1 ? to : from;
+        }
+
         // We don't need DOTween, guys
         public static IEnumerator Animate(float duration, Action<float> callback)
         {
