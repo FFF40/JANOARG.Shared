@@ -235,8 +235,10 @@ namespace JANOARG.Shared.Data.ChartInfo
             int w = (int)clipp;
             float z = clipp - w + offset;
         
-            // This is a approximation of 2^z in range [0,1)
-            // Using bit shifting of constants I cannot comprehend (it's the same kind of workaround to do division in assembly)
+            // Approximation of 2^z for z in [0,1]
+            // Uses a fast bit-level hack by manipulating the float’s exponent bits directly.
+            // The constants are empirically tuned to produce a close approximation without calling Mathf.Pow.
+            // Equivalent to “fast 2^z” in older graphics/audio routines or assembly tricks.
             return BitConverter.Int32BitsToSingle(
                 (int)((1 << 23) * (clipp + 121.2740575f + 27.7280233f / (4.84252568f - z) - 1.49012907f * z)));
         }
