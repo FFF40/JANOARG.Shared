@@ -29,6 +29,39 @@ namespace JANOARG.Shared.Data.ChartInfo
         Elastic,
         Bounce
     }
+    public class EaseUtils
+        {
+            public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * to;
+            
+            public static float LerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * (from + delta);
+            
+            public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                from * (1 - Ease.Get(interpolator, easeFunc, mode));
+            
+            public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+                to * Ease.Get(interpolator, easeFunc, mode);
+            
+            
+            // For predefined eases
+            
+            public static float LerpTo(float from, float to, float ease) =>
+                (1 - ease) * from + ease * to;
+            
+            public static float LerpBy(float from, float delta, float ease) =>
+                (1 - ease) * from + ease * (from + delta);
+            
+            public static float ToZero(float from, float ease) =>
+                from * (1 - ease);
+            
+            public static float FromZero(float to, float ease) =>
+                to * ease;
+            
+            public static float Snap(float from, float to, float ease) =>
+                (int)ease == 1 ? to : from;
+            
+        }
 
     [Serializable]
     public class Ease
@@ -50,42 +83,13 @@ namespace JANOARG.Shared.Data.ChartInfo
                 _ => sEases[(int)easeFunc].InOut(x)
             };
         }
-
-        public class Presets
-        {
-            public static float GetDelayedEase(float x, float delay, float scale, EaseFunction func, EaseMode mode) =>
-                Ease.Get(Mathf.Clamp01(x * scale - delay), func, mode);
+        
+        public static float GetDelayedEase(float x, float delay, EaseFunction func, EaseMode mode, float scale = 1) =>
+            Ease.Get(Mathf.Clamp01(x * scale - delay), func, mode);
             
-            public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                (1 - Get(interpolator, easeFunc, mode)) * from + Get(interpolator, easeFunc, mode) * to;
-            
-            public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                from * (1 - Get(interpolator, easeFunc, mode));
-            
-            public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                to * Get(interpolator, easeFunc, mode);
-            
-            public static float SharpDropEase(float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                (1 - Get(interpolator, easeFunc, mode)) * (1 - Get(interpolator, easeFunc, mode));
-            
-            public static float Snap(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                (int)interpolator == 1 ? to : from;
-            
-            // For predefined eases
-            
-            public static float LerpTo(float from, float to, float ease) =>
-                (1 - ease) * from + ease * to;
-            
-            public static float ToZero(float from, float ease) =>
-                from * (1 - ease);
-            
-            public static float FromZero(float to, float ease) =>
-                to * ease;
-            
-            public static float SharpDropEase(float ease) =>
-                (1 - ease) * (1 - ease);
-            
-        }
+        public static float GetMultipliedEase(float x, float scale, EaseFunction func, EaseMode mode) =>
+            Ease.Get(Mathf.Clamp01(x * scale), func, mode);
+        
 
         // We don't need DOTween, guys
         public static IEnumerator Animate(float duration, Action<float> callback)
