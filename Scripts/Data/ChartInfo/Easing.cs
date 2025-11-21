@@ -223,11 +223,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             return y;
         }
             
-        private static float FastCos(float x)
-        {
+        private static float FastCos(float x) =>
             // Cos in a nutshell: Sine, just translated back by 90 degrees (but we're using rad so yeah)
-            return FastSin(_PI_HALF - x);
-        }
+            FastSin(_PI_HALF - x);
 
         // Fast power approximation for base 2
         private static float FastPow2(float p)
@@ -246,12 +244,15 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
 
         // Fast power function for any base
-        private static float FastPow(float a, float b)
-        {
+        private static float FastPow(float a, float b) =>
             // Logarithm shouldn't be costly, I think?
-            return FastPow2(b * Mathf.Log(a, 2));
-        }
-        
+            FastPow2(b * Mathf.Log(a, 2));
+
+        private static float FastSqrt(float x) =>
+            x < 0 
+                ? throw new InvalidOperationException("Cannot take square root of negative number") 
+                : FastPow(x, 0.5f);
+
         // Fast approximate equality check
         private static bool FastApproximately(float a, float b = 1f)
         {
@@ -340,11 +341,11 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             sEases[(int)EaseFunction.Circle] = new Ease
             {
-                In = (x) => 1 - Mathf.Sqrt(1 - (x * x)),
-                Out = (x) => Mathf.Sqrt(1 - ((x - 1) * (x - 1))),
+                In = (x) => 1 - FastSqrt(1 - (x * x)),
+                Out = (x) => FastSqrt(1 - ((x - 1) * (x - 1))),
                 InOut = (x) => x < 0.5
-                    ? (1 - Mathf.Sqrt(1 - ((2 * x) * (2 * x)))) / 2
-                    : (Mathf.Sqrt(1 - ((-2 * x + 2) * (-2 * x + 2))) + 1) / 2
+                    ? (1 - FastSqrt(1 - ((2 * x) * (2 * x)))) / 2
+                    : (FastSqrt(1 - ((-2 * x + 2) * (-2 * x + 2))) + 1) / 2
             };
 
             sEases[(int)EaseFunction.Back] = new Ease
