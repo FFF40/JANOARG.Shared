@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -97,23 +98,23 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
         
         // Task Async alternative
-        public static async Task AnimateTask(float duration, Action<float> callback)
+        public static async Task AnimateTask(float duration, Action<float> callback, CancellationToken token = default)
         {
             float a = 0;
-            while (a < 1)
+            while (a < 1 && !token.IsCancellationRequested)
             {
                 callback(a);
-                await Task.Yield(); // return next frame
+                await Task.Yield();
                 a += Time.deltaTime / duration;
             }
             callback(1f);
         }
+        
 
-
-        public static async Task AnimateTask(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
+        public static async Task AnimateTask(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback, CancellationToken token = default)
         {
             float a = 0f;
-            while (a < 1)
+            while (a < 1 && !token.IsCancellationRequested)
             {
                 callback(a, easeFunc, mode);
                 await Task.Yield();
