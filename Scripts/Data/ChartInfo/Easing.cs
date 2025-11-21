@@ -29,39 +29,41 @@ namespace JANOARG.Shared.Data.ChartInfo
         Elastic,
         Bounce
     }
-    public class EaseUtils
-        {
-            public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * to;
-            
-            public static float LerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * (from + delta);
-            
-            public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                from * (1 - Ease.Get(interpolator, easeFunc, mode));
-            
-            public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-                to * Ease.Get(interpolator, easeFunc, mode);
-            
-            
-            // For predefined eases
-            
-            public static float LerpTo(float from, float to, float ease) =>
-                (1 - ease) * from + ease * to;
-            
-            public static float LerpBy(float from, float delta, float ease) =>
-                (1 - ease) * from + ease * (from + delta);
-            
-            public static float ToZero(float from, float ease) =>
-                from * (1 - ease);
-            
-            public static float FromZero(float to, float ease) =>
-                to * ease;
-            
-            public static float Snap(float from, float to, float ease) =>
-                (int)ease == 1 ? to : from;
-            
-        }
+    
+    [Serializable]
+    public static class EaseUtils
+    {
+        public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * to;
+        
+        public static float LerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * (from + delta);
+        
+        public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            from * (1 - Ease.Get(interpolator, easeFunc, mode));
+        
+        public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            to * Ease.Get(interpolator, easeFunc, mode);
+        
+        
+        // For predefined eases
+        
+        public static float LerpTo(float from, float to, float ease) =>
+            (1 - ease) * from + ease * to;
+        
+        public static float LerpBy(float from, float delta, float ease) =>
+            (1 - ease) * from + ease * (from + delta);
+        
+        public static float ToZero(float from, float ease) =>
+            from * (1 - ease);
+        
+        public static float FromZero(float to, float ease) =>
+            to * ease;
+        
+        public static float Snap(float from, float to, float ease) =>
+            (int)ease == 1 ? to : from;
+        
+    }
 
     [Serializable]
     public class Ease
