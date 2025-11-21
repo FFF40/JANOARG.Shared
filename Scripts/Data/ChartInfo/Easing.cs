@@ -45,6 +45,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             to * Ease.Get(interpolator, easeFunc, mode);
         
+        public static float BlastIn(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            to / Ease.Get(interpolator, easeFunc, mode);
+
+        public static float BlastOut(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            from / (1 - Ease.Get(interpolator, easeFunc, mode));
+        
         
         // For predefined eases
         
@@ -62,6 +68,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         
         public static float Snap(float from, float to, float ease) =>
             (int)ease == 1 ? to : from;
+        
+        public static float BlastIn(float to, float ease) =>
+            to / ease;
+        
+        public static float BlastOut(float from, float ease) =>
+            from / (1 - ease);
         
     }
 
