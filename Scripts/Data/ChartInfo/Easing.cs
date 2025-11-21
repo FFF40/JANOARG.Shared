@@ -70,6 +70,21 @@ namespace JANOARG.Shared.Data.ChartInfo
             
             public static float Snap(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
                 (int)interpolator == 1 ? to : from;
+            
+            // For predefined eases
+            
+            public static float LerpTo(float from, float to, float ease) =>
+                (1 - ease) * from + ease * to;
+            
+            public static float ToZero(float from, float ease) =>
+                from * (1 - ease);
+            
+            public static float FromZero(float to, float ease) =>
+                to * ease;
+            
+            public static float SharpDropEase(float ease) =>
+                (1 - ease) * (1 - ease);
+            
         }
 
         // We don't need DOTween, guys
