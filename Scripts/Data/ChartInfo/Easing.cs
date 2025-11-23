@@ -135,6 +135,13 @@ namespace JANOARG.Shared.Data.ChartInfo
         
 
         // We don't need DOTween, guys
+        
+        /// <summary>
+        /// Animates a value from 0 to 1 over specified duration, invoking callback each frame with linear progress.
+        /// Supports cancellation via Ease.Skip
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="callback">Action receiving linear progress (0 to 1) each frame</param>
         public static IEnumerator Animate(float duration, Action<float> callback)
         {
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
@@ -159,6 +166,14 @@ namespace JANOARG.Shared.Data.ChartInfo
             callback(1);
         }
 
+        /// <summary>
+        /// Animates with easing, with support for shortcuts to ease parameters for callback.
+        /// Useful for creating multiple easings with similar parameters.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving (progress, easeFunc, mode) each frame</param>
         public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
         {
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
