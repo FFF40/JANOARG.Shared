@@ -36,8 +36,14 @@ namespace JANOARG.Shared.Data.ChartInfo
         public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * to;
         
+        public static float InverseLerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            Ease.Get(interpolator, easeFunc, mode) * from + (1 - Ease.Get(interpolator, easeFunc, mode)) * to;
+        
         public static float LerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * (from + delta);
+        
+        public static float InverseLerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
+            from + delta * (1 - Ease.Get(interpolator, easeFunc, mode));
         
         public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from * (1 - Ease.Get(interpolator, easeFunc, mode));
@@ -57,8 +63,15 @@ namespace JANOARG.Shared.Data.ChartInfo
         public static float LerpTo(float from, float to, float ease) =>
             (1 - ease) * from + ease * to;
         
+        public static float InverseLerpTo(float from, float to, float ease) =>
+            ease * from + (1 - ease) * to;
+
+        
         public static float LerpBy(float from, float delta, float ease) =>
             (1 - ease) * from + ease * (from + delta);
+        
+        public static float InverseLerpBy(float from, float delta, float ease) =>
+            from + delta * (1 - ease);
         
         public static float ToZero(float from, float ease) =>
             from * (1 - ease);
@@ -221,7 +234,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         private const float _BOUNCE_CONSTANT  = 7.5625f;
         private const float _BOUNCE_THRESHOLD = 2.75f;
         
-        private static float FastSin(float x)
+        public static float FastSin(float x)
         {
             const float B = 4f / _PI;
             const float C = -4f / (_PI * _PI);
@@ -235,12 +248,12 @@ namespace JANOARG.Shared.Data.ChartInfo
             return y;
         }
             
-        private static float FastCos(float x) =>
+        public static float FastCos(float x) =>
             // Cos in a nutshell: Sine, just translated back by 90 degrees (but we're using rad so yeah)
             FastSin(_PI_HALF - x);
 
         // Fast power approximation for base 2
-        private static float FastPow2(float p)
+        public static float FastPow2(float p)
         {
             float offset = (p < 0) ? 1.0f : 0.0f;
             float clipp = (p < -126) ? -126.0f : p;
@@ -256,17 +269,17 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
 
         // Fast power function for any base
-        private static float FastPow(float a, float b) =>
+        public static float FastPow(float a, float b) =>
             // Logarithm shouldn't be costly, I think?
             FastPow2(b * Mathf.Log(a, 2));
 
-        private static float FastSqrt(float x) =>
+        public static float FastSqrt(float x) =>
             x < 0 
                 ? throw new InvalidOperationException("Cannot take square root of negative number") 
                 : FastPow(x, 0.5f);
 
         // Fast approximate equality check
-        private static bool FastApproximately(float a, float b = 1f)
+        public static bool FastApproximately(float a, float b = 1f)
         {
             // For our easing functions, we typically compare with 1 or 0
             // Using subtraction is faster than Mathf.Abs for this case
