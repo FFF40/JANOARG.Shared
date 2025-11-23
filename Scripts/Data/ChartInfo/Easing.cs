@@ -97,6 +97,21 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Func<float, float> Out;
         public Func<float, float> InOut;
 
+        private static bool s_cancelRequested = false;
+        private static bool s_forceCancelRequested = false;
+        
+        /// <summary>
+        /// Properly finish the current Animate loop by skipping to callback(1).
+        /// Recommended to use this over StopCoroutine.
+        /// </summary>
+        public static void Skip(bool force = false)
+        {
+            s_cancelRequested = true;
+            
+            if (force) s_forceCancelRequested = true;
+            
+        }
+
         public static float Get(float x, EaseFunction easeFunc, EaseMode mode)
         {
             //Ease funcs = sEases[(int)easeFunc];
@@ -123,9 +138,21 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
+                if (s_cancelRequested)
+                {
+                    s_cancelRequested = false;
+                    break;
+                }
+                
                 callback(a);
 
                 yield return null;
+            }
+
+            if (s_forceCancelRequested)
+            {
+                s_forceCancelRequested = false;
+                yield break;
             }
 
             callback(1);
@@ -135,11 +162,22 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
+                if (s_cancelRequested)
+                {
+                    s_cancelRequested = false;
+                    break;
+                }
+                
                 callback(a, easeFunc, mode);
 
                 yield return null;
             }
 
+            if (s_forceCancelRequested)
+            {
+                s_forceCancelRequested = false;
+                yield break;
+            }
             callback(1, easeFunc, mode);
         }
         
