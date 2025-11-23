@@ -197,6 +197,74 @@ namespace JANOARG.Shared.Data.ChartInfo
             callback(1, easeFunc, mode);
         }
         
+        /// <summary>
+        /// Animates with easing, automatically calculating eased value and providing all parameters.
+        /// Most comprehensive version - gives access to raw progress, ease parameters shortcuts, and pre-calculated eased value.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving (progress, easeFunc, mode, easedValue) each frame</param>
+        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
+        {
+            float ease;
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                if (s_cancelRequested)
+                {
+                    s_cancelRequested = false;
+                    break;
+                }
+                
+                ease = Get(a, easeFunc, mode);
+                callback(a, easeFunc, mode, ease);
+
+                yield return null;
+            }
+
+            if (s_forceCancelRequested)
+            {
+                s_forceCancelRequested = false;
+                yield break;
+            }
+            ease = Get(1, easeFunc, mode);
+            callback(1, easeFunc, mode, ease);
+        }
+        
+        /// <summary>
+        /// Animates with easing, automatically calculating, and providing only the eased value to callback.
+        /// Simplest eased animation - callback receives only the pre-calculated eased progress (0 to 1).
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving eased progress value (0 to 1) each frame</param>
+        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
+        {
+            float ease;
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                if (s_cancelRequested)
+                {
+                    s_cancelRequested = false;
+                    break;
+                }
+                
+                ease = Get(a, easeFunc, mode);
+                callback(ease);
+
+                yield return null;
+            }
+
+            if (s_forceCancelRequested)
+            {
+                s_forceCancelRequested = false;
+                yield break;
+            }
+            ease = Get(1, easeFunc, mode);
+            callback(ease);
+        }
+        
         // Task Async alternative
         public static async Task AnimateTask(float duration, Action<float> callback, CancellationToken token = default)
         {
