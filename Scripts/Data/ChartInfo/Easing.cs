@@ -126,11 +126,12 @@ namespace JANOARG.Shared.Data.ChartInfo
             };
         }
         
-        public static float GetDelayedEase(float x, float delay, EaseFunction func, EaseMode mode, float scale = 1) =>
-            Ease.Get(x * scale - delay, func, mode);
+        
+        public static float GetDelayed(float x, float delay, EaseFunction func, EaseMode mode, float scale = 1) =>
+            Get(x * scale - delay, func, mode);
             
-        public static float GetMultipliedEase(float x, float scale, EaseFunction func, EaseMode mode) =>
-            Ease.Get(x * scale, func, mode);
+        public static float GetMultiplied(float x, float scale, EaseFunction func, EaseMode mode) =>
+            Get(x * scale, func, mode);
         
 
         // We don't need DOTween, guys
