@@ -185,7 +185,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         /// <summary>
         /// Animates with easing, with support for shortcuts to ease parameters for callback.
-        /// Useful for creating multiple easings with similar parameters.
+        /// Useful for creating multiple easings with similar parameters, with declarative syntax.
         /// </summary>
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="easeFunc">Easing function type</param>
