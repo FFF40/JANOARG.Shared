@@ -531,7 +531,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     if (x == 0) return 0;
                     if (FastApproximately(x, 1)) return 1;
 
-                    return -FastPow(2, 10 * x - 10) * Mathf.Sin((x * 10 - _ELASTIC_IN_OFFSET) * _ELASTIC_PERIOD);
+                    return -FastPow(2, 10 * x - 10) * FastSin((x * 10 - _ELASTIC_IN_OFFSET) * _ELASTIC_PERIOD);
                 },
                 Out = (x) =>
                 {
@@ -540,7 +540,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                     if (FastApproximately(x, 1)) return 1;
 
-                    return FastPow(2, -10 * x) * Mathf.Sin((x * 10 - _ELASTIC_OUT_OFFSET) * _ELASTIC_PERIOD) + 1;
+                    return FastPow(2, -10 * x) * FastSin((x * 10 - _ELASTIC_OUT_OFFSET) * _ELASTIC_PERIOD) + 1;
                 },
                 InOut = (x) =>
                 {
@@ -548,9 +548,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                     if (x == 0) return 0;
                     if (FastApproximately(x, 1)) return 1;
 
-                    if (x < 0.5) return -(FastPow(2, 20 * x - 10) * Mathf.Sin((20 * x - _ELASTIC_PERIOD_IN_OUT_INNER) * _ELASTIC_PERIOD)) / 2;
+                    if (x < 0.5) return -(FastPow(2, 20 * x - 10) * FastSin((20 * x - _ELASTIC_PERIOD_IN_OUT_INNER) * _ELASTIC_PERIOD)) / 2;
 
-                    return FastPow(2, -20 * x + 10) * Mathf.Sin((20 * x - _ELASTIC_PERIOD_IN_OUT_INNER) * _ELASTIC_PERIOD) / 2 + 1;
+                    return FastPow(2, -20 * x + 10) * FastSin((20 * x - _ELASTIC_PERIOD_IN_OUT_INNER) * _ELASTIC_PERIOD) / 2 + 1;
                 }
             };
 
