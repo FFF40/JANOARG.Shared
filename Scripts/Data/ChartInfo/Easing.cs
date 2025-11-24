@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
@@ -33,58 +34,74 @@ namespace JANOARG.Shared.Data.ChartInfo
     [Serializable]
     public static class EaseUtils
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * to;
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             Ease.Get(interpolator, easeFunc, mode) * from + (1 - Ease.Get(interpolator, easeFunc, mode)) * to;
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * (from + delta);
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from + delta * (1 - Ease.Get(interpolator, easeFunc, mode));
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from * (1 - Ease.Get(interpolator, easeFunc, mode));
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             to * Ease.Get(interpolator, easeFunc, mode);
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastIn(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             to / Ease.Get(interpolator, easeFunc, mode);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastOut(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from / (1 - Ease.Get(interpolator, easeFunc, mode));
         
         
         // For predefined eases
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpTo(float from, float to, float ease) =>
             (1 - ease) * from + ease * to;
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpTo(float from, float to, float ease) =>
             ease * from + (1 - ease) * to;
 
-        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpBy(float from, float delta, float ease) =>
             (1 - ease) * from + ease * (from + delta);
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpBy(float from, float delta, float ease) =>
             from + delta * (1 - ease);
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float ToZero(float from, float ease) =>
             from * (1 - ease);
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FromZero(float to, float ease) =>
             to * ease;
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Snap(float from, float to, float ease) =>
             (int)ease == 1 ? to : from;
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastIn(float to, float ease) =>
             to / ease;
         
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastOut(float from, float ease) =>
             from / (1 - ease);
         
@@ -370,6 +387,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             return y;
         }
             
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FastCos(float x) =>
             // Cos in a nutshell: Sine, just translated back by 90 degrees (but we're using rad so yeah)
             FastSin(_PI_HALF - x);
@@ -395,12 +413,14 @@ namespace JANOARG.Shared.Data.ChartInfo
             // Logarithm shouldn't be costly, I think?
             FastPow2(b * Mathf.Log(a, 2));
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FastSqrt(float x) =>
             x < 0 
                 ? throw new InvalidOperationException("Cannot take square root of negative number") 
                 : FastPow(x, 0.5f);
 
         // Fast approximate equality check
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool FastApproximately(float a, float b = 1f)
         {
             // For our easing functions, we typically compare with 1 or 0
