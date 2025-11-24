@@ -631,15 +631,6 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         [SerializeField] private float[] _Samples;
 
-        private const float _EPSILON = 1e-6f;
-
-        // FIXME: Can't be bothered to move the method out of the class scope
-        private static bool FastApproximately(float a, float b = 1f)
-        {
-            float diff = a - b;
-            return diff is < _EPSILON and > -_EPSILON;
-        }
-
         public CubicBezierEaseDirective(Vector2 point1, Vector2 point2)
         {
             Validate(point1);
@@ -670,7 +661,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public float Get(float x)
         {
-            if (x == 0 || FastApproximately(x, 1)) return x;
+            if (x == 0 || Ease.FastApproximately(x, 1)) return x;
 
             Debug.Assert(_Samples != null, "CubicBezierEaseDirective: Samples array is null");
             Debug.Assert(_Samples.Length > 1, "CubicBezierEaseDirective: Samples array is empty");
@@ -737,7 +728,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 float currentX = GetBezier(initialGuess, Point1.x, Point2.x);
 
-                if (FastApproximately(targetX, currentX))
+                if (Ease.FastApproximately(targetX, currentX))
                     return initialGuess;
 
                 initialGuess -= (currentX - targetX) / slope;
