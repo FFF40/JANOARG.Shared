@@ -144,11 +144,19 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
         
         
-        public static float GetDelayed(float x, float delay, EaseFunction func, EaseMode mode, float scale = 1) =>
-            Get(x * scale - delay, func, mode);
-            
-        public static float GetMultiplied(float x, float scale, EaseFunction func, EaseMode mode) =>
-            Get(x * scale, func, mode);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        // ReSharper disable once MethodOverloadWithOptionalParameter
+        public static float Get(float x, EaseFunction func, EaseMode mode, float multiplier = 1, float delay = 0) =>
+            Get(x * multiplier - delay, func, mode);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float GetSharpened(float x, float p, EaseFunction func, EaseMode mode, float multiplier = 1, float delay = 0) =>
+            FastPow(Get(x * multiplier - delay, func, mode), p);
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float GetPreSharp(float x, float p, EaseFunction func, EaseMode mode, float multiplier = 1, float delay = 0) =>
+            Get(FastPow(x *  multiplier - delay, p), func, mode, multiplier);
+
         
 
         // We don't need DOTween, guys
