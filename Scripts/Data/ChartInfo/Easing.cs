@@ -398,8 +398,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         // Fast power approximation for base 2
         public static float FastPow2(float p)
         {
-            float offset = (p < 0) ? 1.0f : 0.0f;
-            float clipp = (p < -126) ? -126.0f : p;
+            float offset = (p < 0) 
+                ? 1.0f : 0.0f;
+            
+            float clipp = (p < -126) 
+                ? -126.0f : p;
+            
             int w = (int)clipp;
             float z = clipp - w + offset;
         
@@ -432,29 +436,29 @@ namespace JANOARG.Shared.Data.ChartInfo
             return diff is < _EPSILON and > -_EPSILON;
         }
         
-        public static Ease[] sEases;
+        public static readonly Ease[] srEases;
 
         // We will reduce as much external calls as possible,
         // given this library is being called ~3000+ times per frame
         static Ease()
         {
-            sEases = new Ease[Enum.GetValues(typeof(EaseFunction)).Length];
+            srEases = new Ease[Enum.GetValues(typeof(EaseFunction)).Length];
 
-            sEases[(int)EaseFunction.Linear] = new Ease
+            srEases[(int)EaseFunction.Linear] = new Ease
             {
                 In = (x) => x,
                 Out = (x) => x,
                 InOut = (x) => x
             };
 
-            sEases[(int)EaseFunction.Sine] = new Ease
+            srEases[(int)EaseFunction.Sine] = new Ease
             {
                 In = (x) => 1 - FastCos(x * _PI / 2),
                 Out = (x) => FastSin(x * _PI / 2),
                 InOut = (x) => (1 - FastCos(x * _PI)) / 2
             };
 
-            sEases[(int)EaseFunction.Quadratic] = new Ease
+            srEases[(int)EaseFunction.Quadratic] = new Ease
             {
                 In = (x) => x * x,
                 Out = (x) => 1 - ((1 - x) * (1 - x)),
@@ -463,7 +467,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     : 1 - ((-2 * x + 2) * (-2 * x + 2)) / 2
             };
 
-            sEases[(int)EaseFunction.Cubic] = new Ease
+            srEases[(int)EaseFunction.Cubic] = new Ease
             {
                 In = (x) => x * x * x,
                 Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x)),
@@ -472,7 +476,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
             };
 
-            sEases[(int)EaseFunction.Quartic] = new Ease
+            srEases[(int)EaseFunction.Quartic] = new Ease
             {
                 In = (x) => x * x * x * x,
                 Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x)),
@@ -483,7 +487,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             // For fuck's sake, why do C# not have an exponent operator??
             // Maybe exponent is not ALU standard
-            sEases[(int)EaseFunction.Quintic] = new Ease
+            srEases[(int)EaseFunction.Quintic] = new Ease
             {
                 In = (x) => x * x * x * x * x,
                 Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x) * (1 - x)),
@@ -492,7 +496,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
             };
 
-            sEases[(int)EaseFunction.Exponential] = new Ease
+            srEases[(int)EaseFunction.Exponential] = new Ease
             {
                 In = (x) => x == 0
                     ? 0
@@ -509,7 +513,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                             : (2 - FastPow(2, -20 * x + 10)) / 2 + 0.0009765625f * x
             };
 
-            sEases[(int)EaseFunction.Circle] = new Ease
+            srEases[(int)EaseFunction.Circle] = new Ease
             {
                 In = (x) => 1 - FastSqrt(1 - (x * x)),
                 Out = (x) => FastSqrt(1 - ((x - 1) * (x - 1))),
@@ -518,7 +522,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     : (FastSqrt(1 - ((-2 * x + 2) * (-2 * x + 2))) + 1) / 2
             };
 
-            sEases[(int)EaseFunction.Back] = new Ease
+            srEases[(int)EaseFunction.Back] = new Ease
             {
                 In = (x) => 2.70158f * x * x * x - _BACK_OVERSHOOT * x * x,
                 Out = (x) => 1 + 2.70158f * ((x - 1) * (x - 1) * (x - 1)) + _BACK_OVERSHOOT * ((x - 1) * (x - 1)),
@@ -527,7 +531,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     : (((2 * x - 2) * (2 * x - 2))* ((_BACK_SCALED_OVERSHOOT + 1) * (x * 2 - 2) + _BACK_SCALED_OVERSHOOT) + 2) / 2
             };
 
-            sEases[(int)EaseFunction.Elastic] = new Ease
+            srEases[(int)EaseFunction.Elastic] = new Ease
             {
                 In = (x) =>
                 {
@@ -557,7 +561,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 }
             };
 
-            sEases[(int)EaseFunction.Bounce] = new Ease
+            srEases[(int)EaseFunction.Bounce] = new Ease
             {
                 In = (x) => 1 - Get(1 - x, EaseFunction.Bounce, EaseMode.Out),
                 Out = (x) =>
