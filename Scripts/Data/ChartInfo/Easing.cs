@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -129,35 +130,29 @@ namespace JANOARG.Shared.Data.ChartInfo
             
         }
 
-        public static float Get(float x, EaseFunction easeFunc, EaseMode mode)
+        [SuppressMessage("ReSharper", "CompareOfFloatsByEqualityOperator")] // We don't care about floating point errors here
+        public static float Get(float x, EaseFunction easeFunc, EaseMode mode, float multiplier = 1, float delay = 0, float xPow = 1)
         {
-            //Ease funcs = sEases[(int)easeFunc];
             x = x > 1 ? 1 : x;
             x = x < 0 ? 0 : x;
+            
+            // Only operate on non-default optional parameters
+            x = delay != 0 ? x - delay : x;
+            x = multiplier != 1f ? x * multiplier : x;
+            x = xPow != 1f ? FastPow(x, xPow) : x;
     
+            // No need to cache on static readonly arrays
             return mode switch
             {
-                EaseMode.In => sEases[(int)easeFunc].In(x),
-                EaseMode.Out => sEases[(int)easeFunc].Out(x), 
-                _ => sEases[(int)easeFunc].InOut(x)
+                EaseMode.In => srEases[(int)easeFunc].In(x),
+                EaseMode.Out => srEases[(int)easeFunc].Out(x), 
+                _ => srEases[(int)easeFunc].InOut(x)
             };
         }
-        
-        
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        // ReSharper disable once MethodOverloadWithOptionalParameter
-        public static float Get(float x, EaseFunction func, EaseMode mode, float multiplier = 1, float delay = 0) =>
-            Get(x * multiplier - delay, func, mode);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float GetSharpened(float x, float p, EaseFunction func, EaseMode mode, float multiplier = 1, float delay = 0) =>
             FastPow(Get(x * multiplier - delay, func, mode), p);
-        
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float GetPreSharp(float x, float p, EaseFunction func, EaseMode mode, float multiplier = 1, float delay = 0) =>
-            Get(FastPow(x *  multiplier - delay, p), func, mode, multiplier);
-
-        
 
         // We don't need DOTween, guys
         
