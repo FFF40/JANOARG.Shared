@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -115,8 +114,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Func<float, float> Out;
         public Func<float, float> InOut;
 
-        private static bool s_cancelRequested = false;
-        private static bool s_forceCancelRequested = false;
+        private static bool s_cancelRequested;
+        private static bool s_forceCancelRequested;
         
         /// <summary>
         /// Properly finish the current Animate loop by skipping to callback(1).
@@ -428,7 +427,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         // Fast approximate equality check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool FastApproximately(float a, float b = 1f)
+        public static bool FastApproximately(float a, float b)
         {
             // For our easing functions, we typically compare with 1 or 0
             // Using subtraction is faster than Mathf.Abs for this case
