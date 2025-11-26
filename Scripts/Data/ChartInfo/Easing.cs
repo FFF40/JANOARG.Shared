@@ -132,14 +132,14 @@ namespace JANOARG.Shared.Data.ChartInfo
         [SuppressMessage("ReSharper", "CompareOfFloatsByEqualityOperator")] // We don't care about floating point errors here
         public static float Get(float x, EaseFunction easeFunc, EaseMode mode, float multiplier = 1, float delay = 0, float xPow = 1)
         {
+            // Only operate on non-default optional parameters
+            x = multiplier != 1f ? x * multiplier   : x;
+            x = delay      != 0f ? x - delay        : x;
+            x = xPow       != 1f ? FastPow(x, xPow) : x;
+            
             x = x > 1 ? 1 : x;
             x = x < 0 ? 0 : x;
             
-            // Only operate on non-default optional parameters
-            x = delay != 0 ? x - delay : x;
-            x = multiplier != 1f ? x * multiplier : x;
-            x = xPow != 1f ? FastPow(x, xPow) : x;
-    
             // No need to cache on static readonly arrays
             return mode switch
             {
