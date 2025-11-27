@@ -143,9 +143,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             // No need to cache on static readonly arrays
             return mode switch
             {
-                EaseMode.In => srEases[(int)easeFunc].In(x),
+                EaseMode.In  => srEases[(int)easeFunc].In(x),
                 EaseMode.Out => srEases[(int)easeFunc].Out(x), 
-                _ => srEases[(int)easeFunc].InOut(x)
+                _            => srEases[(int)easeFunc].InOut(x)
             };
         }
 
