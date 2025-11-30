@@ -656,41 +656,41 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             srEases[(int)EaseFunction.Linear] = new Ease
             {
-                In = (x) => x,
-                Out = (x) => x,
-                InOut = (x) => x
+                In = x => x,
+                Out = x => x,
+                InOut = x => x
             };
 
             srEases[(int)EaseFunction.Sine] = new Ease
             {
-                In = (x) => 1 - FastCos(x * _PI / 2),
-                Out = (x) => FastSin(x * _PI / 2),
-                InOut = (x) => (1 - FastCos(x * _PI)) / 2
+                In = x => 1 - FastCos(x * _PI / 2),
+                Out = x => FastSin(x * _PI / 2),
+                InOut = x => (1 - FastCos(x * _PI)) / 2
             };
 
             srEases[(int)EaseFunction.Quadratic] = new Ease
             {
-                In = (x) => x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
+                In = x => x * x,
+                Out = x => 1 - ((1 - x) * (1 - x)),
+                InOut = x => x < 0.5f
                     ? 2 * x * x
                     : 1 - ((-2 * x + 2) * (-2 * x + 2)) / 2
             };
 
             srEases[(int)EaseFunction.Cubic] = new Ease
             {
-                In = (x) => x * x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
+                In = x => x * x * x,
+                Out = x => 1 - ((1 - x) * (1 - x) * (1 - x)),
+                InOut = x => x < 0.5f
                     ? 4 * x * x * x
                     : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
             };
 
             srEases[(int)EaseFunction.Quartic] = new Ease
             {
-                In = (x) => x * x * x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
+                In = x => x * x * x * x,
+                Out = x => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x)),
+                InOut = x => x < 0.5f
                     ? 8 * x * x * x * x
                     : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
             };
@@ -699,22 +699,22 @@ namespace JANOARG.Shared.Data.ChartInfo
             // Maybe exponent is not ALU standard
             srEases[(int)EaseFunction.Quintic] = new Ease
             {
-                In = (x) => x * x * x * x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
+                In = x => x * x * x * x * x,
+                Out = x => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x) * (1 - x)),
+                InOut = x => x < 0.5f
                     ? 16 * x * x * x * x * x
                     : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
             };
 
             srEases[(int)EaseFunction.Exponential] = new Ease
             {
-                In = (x) => x == 0
+                In = x => x == 0
                     ? 0
                     : FastPow(2, 10 * x - 10) - 0.0009765625f * (1 - x),
-                Out = (x) => FastApproximately(x, 1)
+                Out = x => FastApproximately(x, 1)
                     ? 1
                     : 1 - FastPow(2, -10 * x) + 0.0009765625f * x,
-                InOut = (x) => x == 0
+                InOut = x => x == 0
                     ? 0
                     : FastApproximately(x, 1)
                         ? 1
@@ -734,23 +734,23 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             srEases[(int)EaseFunction.Back] = new Ease
             {
-                In = (x) => 2.70158f * x * x * x - _BACK_OVERSHOOT * x * x,
-                Out = (x) => 1 + 2.70158f * ((x - 1) * (x - 1) * (x - 1)) + _BACK_OVERSHOOT * ((x - 1) * (x - 1)),
-                InOut = (x) => x < 0.5f
+                In = x => 2.70158f * x * x * x - _BACK_OVERSHOOT * x * x,
+                Out = x => 1 + 2.70158f * ((x - 1) * (x - 1) * (x - 1)) + _BACK_OVERSHOOT * ((x - 1) * (x - 1)),
+                InOut = x => x < 0.5f
                     ? ((2 * x) * (2 * x)) * ((_BACK_SCALED_OVERSHOOT + 1) * 2 * x - _BACK_SCALED_OVERSHOOT) / 2
                     : (((2 * x - 2) * (2 * x - 2))* ((_BACK_SCALED_OVERSHOOT + 1) * (x * 2 - 2) + _BACK_SCALED_OVERSHOOT) + 2) / 2
             };
 
             srEases[(int)EaseFunction.Elastic] = new Ease
             {
-                In = (x) =>
+                In = x =>
                 {
                     if (x == 0) return 0;
                     if (FastApproximately(x, 1)) return 1;
 
                     return -FastPow(2, 10 * x - 10) * FastSin((x * 10 - _ELASTIC_IN_OFFSET) * _ELASTIC_PERIOD);
                 },
-                Out = (x) =>
+                Out = x =>
                 {
 
                     if (x == 0) return 0;
@@ -759,7 +759,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                     return FastPow(2, -10 * x) * FastSin((x * 10 - _ELASTIC_OUT_OFFSET) * _ELASTIC_PERIOD) + 1;
                 },
-                InOut = (x) =>
+                InOut = x =>
                 {
 
                     if (x == 0) return 0;
@@ -773,8 +773,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             srEases[(int)EaseFunction.Bounce] = new Ease
             {
-                In = (x) => 1 - Get(1 - x, EaseFunction.Bounce, EaseMode.Out),
-                Out = (x) =>
+                In = x => 1 - Get(1 - x, EaseFunction.Bounce, EaseMode.Out),
+                Out = x =>
                 {
 
                     if (x < 1 / _BOUNCE_THRESHOLD)
@@ -789,7 +789,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                     return _BOUNCE_CONSTANT * (x -= 2.625f / _BOUNCE_THRESHOLD) * x + 0.984375f;
                 },
-                InOut = (x) => x < 0.5
+                InOut = x => x < 0.5
                     ? (1 - Get(1 - 2 * x, EaseFunction.Bounce, EaseMode.Out)) / 2
                     : (1 + Get(2 * x - 1, EaseFunction.Bounce, EaseMode.Out)) / 2
             };
