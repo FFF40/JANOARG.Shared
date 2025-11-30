@@ -578,12 +578,63 @@ namespace JANOARG.Shared.Data.ChartInfo
             return FastPow2(exponent);
         }
         
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float PseudoFastSqrt(float x) => FastPow(x, 0.5f);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float FastSqrt(float x) =>
-            x < 0 
-                ? throw new InvalidOperationException("Cannot take square root of negative number") 
-                : FastPow(x, 0.5f);
+        public static float FastSqrt(float x, bool precision = false)
+        {
+            // Testing
+            //return Mathf.Sqrt(x);
+            
+            Debug.Assert(x >= 0f, "FastSqrt(float): input must be non-negative.");
+
+            if (x == 0f) return 0f;
+
+            float y = x;
+            
+            // 1 / derivative of y^2 - x
+            const float COEFFICIENT = 0.5f;
+
+            // Single Newton-Raphson iteration: fast approximation of sqrt(x)
+            y = COEFFICIENT * (y + x / y);
+
+            // Optional second iteration for slightly higher accuracy.
+            // More iterations would exceed float precision and provide negligible benefit.
+            if (precision)
+                y = COEFFICIENT * (y + x / y);
+
+            y = y > 1 ? 1 : y;
+            y = y < 0 ? 0 : y;
+            
+            return y; 
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double FastSqrt(double x, bool precision = false)
+        {
+            Debug.Assert(x >= 0.0, "FastSqrt(double): input must be non-negative.");
+
+            if (x == 0.0) return 0.0;
+
+            double y = x;
+            
+            // 1 / derivative of y^2 - x
+            const double COEFFICIENT = 0.5;
+
+            y = COEFFICIENT * (y + x / y);
+
+            // Optional three extra iterations for full double-precision accuracy
+            if (precision)
+            {
+                y = COEFFICIENT * (y + x / y);
+                y = COEFFICIENT * (y + x / y);
+            }
+
+            return y;
+        }
+
 
         // Fast approximate equality check
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
