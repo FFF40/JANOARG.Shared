@@ -725,11 +725,12 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             srEases[(int)EaseFunction.Circle] = new Ease
             {
-                In = (x) => 1 - FastSqrt(1 - (x * x)),
-                Out = (x) => FastSqrt(1 - ((x - 1) * (x - 1))),
-                InOut = (x) => x < 0.5
-                    ? (1 - FastSqrt(1 - ((2 * x) * (2 * x)))) / 2
-                    : (FastSqrt(1 - ((-2 * x + 2) * (-2 * x + 2))) + 1) / 2
+                // PseudoFastSqrt is more visually stable than FastSqrt for this case
+                In = x => 1 - PseudoFastSqrt(1 - (x * x)),
+                Out = x => PseudoFastSqrt(1 - ((x - 1) * (x - 1))),
+                InOut = x => x < 0.5
+                    ? (1 - PseudoFastSqrt(1 - ((2 * x) * (2 * x)))) / 2
+                    : (PseudoFastSqrt(1 - ((-2 * x + 2) * (-2 * x + 2))) + 1) / 2
             };
 
             srEases[(int)EaseFunction.Back] = new Ease
