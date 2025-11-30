@@ -285,31 +285,168 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
         
         // Task Async alternative
-        public static async Task AnimateTask(float duration, Action<float> callback, CancellationToken token = default)
-        {
-            float a = 0;
-            while (a < 1 && !token.IsCancellationRequested)
-            {
-                callback(a);
-                await Task.Yield();
-                a += Time.deltaTime / duration;
-            }
-            callback(1f);
-        }
+        // Note: This one tries to avoid Unity dependencies, so DeltaTime is not used
+        // This may not play well with Unity threads so use this with caution.
+        // It is recommended to replace DateTime with your own available clock implementations
         
-
-        public static async Task AnimateTask(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback, CancellationToken token = default)
+        /// <summary>
+        /// Animates a value from 0 to 1 over specified duration, invoking callback each frame with linear progress.
+        /// Supports cancellation via Ease.Skip
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="callback">Action receiving linear progress (0 to 1) each frame</param>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        public static async Task Animate(float duration, Action<float> callback, CancellationToken cancellationToken = default)
         {
-            float a = 0f;
-            while (a < 1 && !token.IsCancellationRequested)
+            var startTime = DateTime.Now;
+            var endTime = startTime.AddSeconds(duration);
+
+            while (DateTime.Now < endTime)
             {
-                callback(a, easeFunc, mode);
+                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                {
+                    s_cancelRequested = false;
+                    return;
+                }
+
+                var elapsed = (float)(DateTime.Now - startTime).TotalSeconds;
+                var progress = Math.Min(elapsed / duration, 1f);
+
+                callback(progress);
+
                 await Task.Yield();
-                a += Time.deltaTime / duration;
+            }
+
+            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            {
+                s_forceCancelRequested = false;
+                return;
+            }
+
+            callback(1);
+        }
+
+        /// <summary>
+        /// Animates with easing, automatically calculating and providing only the eased value to callback.
+        /// Simplest eased animation - callback receives only the pre-calculated eased progress (0 to 1).
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving eased progress value (0 to 1) each frame</param>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        public static async Task Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback, CancellationToken cancellationToken = default)
+        {
+            var startTime = DateTime.Now;
+            var endTime = startTime.AddSeconds(duration);
+
+            while (DateTime.Now < endTime)
+            {
+                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                {
+                    s_cancelRequested = false;
+                    return;
+                }
+
+                var elapsed = (float)(DateTime.Now - startTime).TotalSeconds;
+                var progress = Math.Min(elapsed / duration, 1f);
+                var ease = Ease.Get(progress, easeFunc, mode);
+
+                callback(ease);
+
+                await Task.Yield();
+            }
+
+            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            {
+                s_forceCancelRequested = false;
+                return;
+            }
+
+            var finalEase = Ease.Get(1, easeFunc, mode);
+            callback(finalEase);
+        }
+
+        /// <summary>
+        /// Animates with easing, with support for shortcuts to ease parameters for callback.
+        /// Useful for creating multiple easings with similar parameters, with declarative syntax.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving (progress, easeFunc, mode) each frame</param>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        public static async Task Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback, CancellationToken cancellationToken = default)
+        {
+            var startTime = DateTime.Now;
+            var endTime = startTime.AddSeconds(duration);
+
+            while (DateTime.Now < endTime)
+            {
+                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                {
+                    s_cancelRequested = false;
+                    return;
+                }
+
+                var elapsed = (float)(DateTime.Now - startTime).TotalSeconds;
+                var progress = Math.Min(elapsed / duration, 1f);
+
+                callback(progress, easeFunc, mode);
+
+                await Task.Yield();
+            }
+
+            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            {
+                s_forceCancelRequested = false;
+                return;
             }
 
             callback(1, easeFunc, mode);
         }
+
+        /// <summary>
+        /// Animates with easing, automatically calculating eased value and providing all parameters.
+        /// Most comprehensive version - gives access to raw progress, ease parameters shortcuts, and pre-calculated eased value.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving (progress, easeFunc, mode, easedValue) each frame</param>
+        /// <param name="cancellationToken">Optional cancellation token</param>
+        public static async Task Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback, CancellationToken cancellationToken = default)
+        {
+            var startTime = DateTime.Now;
+            var endTime = startTime.AddSeconds(duration);
+
+            while (DateTime.Now < endTime)
+            {
+                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                {
+                    s_cancelRequested = false;
+                    return;
+                }
+
+                var elapsed = (float)(DateTime.Now - startTime).TotalSeconds;
+                var progress = Math.Min(elapsed / duration, 1f);
+                var ease = Ease.Get(progress, easeFunc, mode);
+
+                callback(progress, easeFunc, mode, ease);
+
+                await Task.Yield();
+            }
+
+            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            {
+                s_forceCancelRequested = false;
+                return;
+            }
+
+            var finalEase = Ease.Get(1, easeFunc, mode);
+            callback(1, easeFunc, mode, finalEase);
+        }
+
         
         
 
@@ -377,6 +514,10 @@ namespace JANOARG.Shared.Data.ChartInfo
         
         public static float FastSin(float x)
         {
+            
+            // Wrap angle to [-PI, PI]
+            x = (x + _PI) % (2 * _PI) - _PI;
+            
             const float B = 4f / _PI;
             const float C = -4f / (_PI * _PI);
                 
@@ -385,6 +526,10 @@ namespace JANOARG.Shared.Data.ChartInfo
             // Optional extra precision (at some performance cost)
             const float P = 0.225f;
             y = P * (y * Mathf.Abs(y) - y) + y;
+            
+            // Prevent over/undershooting
+            y = y > 1 ? 1 : y;
+            y = y < -1 ? -1 : y;
                 
             return y;
         }
@@ -404,9 +549,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 ? -126.0f : p;
             
             int w = (int)clipp;
-            float z = clipp - w + offset;
+            float z = (clipp - w) + offset;
         
             // Approximation of 2^z for z in [0,1]
+            // Where z = p - i, i = floor(p)
             // Uses a fast bit-level hack by manipulating the float’s exponent bits directly.
             // The constants are empirically tuned to produce a close approximation without calling Mathf.Pow.
             // Equivalent to “fast 2^z” in older graphics/audio routines or assembly tricks.
@@ -415,9 +561,23 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
 
         // Fast power function for any base
-        public static float FastPow(float a, float b) =>
+        public static float FastPow(float a, float b, bool forceCalc = false)
+        { 
+            // Testing
+            //return Mathf.Pow(a, b);
+            
+            // Domain checks first
+            Debug.Assert(a >= 0f, "FastPow(float, float): input must be non-negative.");
+            Debug.Assert(!float.IsNaN(a) && !float.IsNaN(b));
+            Debug.Assert(!float.IsInfinity(a) && !float.IsInfinity(b));
+
+            // Transform exponent
+            float exponent = b * Mathf.Log(a, 2);
+            
             // Logarithm shouldn't be costly, I think?
-            FastPow2(b * Mathf.Log(a, 2));
+            return FastPow2(exponent);
+        }
+        
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FastSqrt(float x) =>
