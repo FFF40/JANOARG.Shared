@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JANOARG.Client.Behaviors.Player;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -185,6 +186,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material BaseMainMaterial;
         public Material NormalMaterial;
         public Material CatchMaterial;
+        public Material HighlightMaterial;
 
         public Material BaseHoldTailMaterial;
         public Material HoldTailMaterial;
@@ -200,6 +202,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 NormalMaterial = new Material(BaseMainMaterial = Resources.Load<Material>("Materials/Hit/" + style.MainMaterial));
                 CatchMaterial = new Material(BaseMainMaterial);
+                HighlightMaterial = new Material(BaseMainMaterial);
             }
 
             if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 

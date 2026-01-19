@@ -799,6 +799,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         public bool         Flickable;
         public float        FlickDirection = -1;
 
+        public bool IsSimultaneous;
+
         public int StyleIndex = 0;
 
         public enum HitType
