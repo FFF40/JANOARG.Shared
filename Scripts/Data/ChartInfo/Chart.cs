@@ -788,6 +788,26 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
     }
 
+    public static class InternalChartTool
+    {
+        public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor)
+        {
+            float h, s, v;
+            Color.RGBToHSV(baseColor, out h, out s, out v);
+
+            h = (h + 0.15f) % 1f;
+            s *= 0.75f;
+
+            Color highlight = Color.HSVToRGB(h, s, v);
+            highlight.a = 0.84f;
+
+            Color glow = highlight;
+            glow.a = 0.6f;
+
+            return (highlight, glow);
+        }
+    }
+
     [System.Serializable]
     public class HitObject : DirtyTrackedStoryboardable, IDeepClonable<HitObject>
     {
