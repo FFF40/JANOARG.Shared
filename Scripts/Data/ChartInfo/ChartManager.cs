@@ -186,7 +186,9 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material BaseMainMaterial;
         public Material NormalMaterial;
         public Material CatchMaterial;
+        
         public Material HighlightMaterial;
+        public Material HighlightGlowMaterial;
 
         public Material BaseHoldTailMaterial;
         public Material HoldTailMaterial;
@@ -203,6 +205,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 NormalMaterial = new Material(BaseMainMaterial = Resources.Load<Material>("Materials/Hit/" + style.MainMaterial));
                 CatchMaterial = new Material(BaseMainMaterial);
                 HighlightMaterial = new Material(BaseMainMaterial);
+                HighlightGlowMaterial = new Material(BaseMainMaterial);
             }
 
             if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 
