@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JANOARG.Client.Behaviors.Player;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -185,6 +186,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material BaseMainMaterial;
         public Material NormalMaterial;
         public Material CatchMaterial;
+        
+        public Material BaseHighlightMaterial;
+        public Material NormalHighlightMaterial;
+        public Material NormalHighlightGlowMaterial;
+        public Material CatchHighlightMaterial;
+        public Material CatchHighlightGlowMaterial;
 
         public Material BaseHoldTailMaterial;
         public Material HoldTailMaterial;
@@ -196,10 +203,18 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public void Update(HitStyle style)
         {
-            if (BaseMainMaterial?.name != style.MainMaterial)
+            if (!BaseMainMaterial || BaseMainMaterial.name != style.MainMaterial)
             {
                 NormalMaterial = new Material(BaseMainMaterial = Resources.Load<Material>("Materials/Hit/" + style.MainMaterial));
                 CatchMaterial = new Material(BaseMainMaterial);
+            }
+
+            if (!BaseHighlightMaterial || BaseHighlightMaterial.name != style.MainMaterial)
+            {
+                NormalHighlightMaterial = new Material(BaseHighlightMaterial = Resources.Load<Material>("Materials/Highlight/" + style.MainMaterial));
+                NormalHighlightGlowMaterial = new Material(BaseHighlightMaterial);
+                CatchHighlightMaterial = new Material(BaseHighlightMaterial);
+                CatchHighlightGlowMaterial = new Material(BaseHighlightMaterial);
             }
 
             if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 
@@ -213,6 +228,20 @@ namespace JANOARG.Shared.Data.ChartInfo
             
             if (HoldTailMaterial) 
                 HoldTailMaterial.SetColor(style.HoldTailColorTarget, style.HoldTailColor);
+
+            if (NormalHighlightMaterial && NormalHighlightGlowMaterial)
+            {
+                (Color highlight, Color glow) = InternalChartTool.CalculateSimultaneousColors(style.NormalColor);
+                NormalHighlightMaterial.SetColor(style.MainColorTarget, highlight);
+                NormalHighlightGlowMaterial.SetColor(style.MainColorTarget, glow);
+            }
+
+            if (CatchHighlightMaterial && CatchHighlightGlowMaterial)
+            {
+                (Color highlight, Color glow) = InternalChartTool.CalculateSimultaneousColors(style.CatchColor);
+                CatchHighlightMaterial.SetColor(style.MainColorTarget, highlight);
+                CatchHighlightGlowMaterial.SetColor(style.MainColorTarget, glow);
+            }
         }
 
         public void Dispose()
