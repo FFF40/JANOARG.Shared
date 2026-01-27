@@ -788,6 +788,20 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
     }
 
+    public static class InternalChartTool
+    {
+        public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor)
+        {
+
+            Color highlight = baseColor;
+            highlight.a *= 0.5f;
+            Color glow = baseColor;
+            glow.a *= 0.4f;
+
+            return (highlight, glow);
+        }
+    }
+
     [System.Serializable]
     public class HitObject : DirtyTrackedStoryboardable, IDeepClonable<HitObject>
     {
@@ -798,6 +812,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         public float        HoldLength = 0;
         public bool         Flickable;
         public float        FlickDirection = -1;
+
+        public bool IsSimultaneous;
 
         public int StyleIndex = 0;
 

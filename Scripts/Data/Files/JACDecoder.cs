@@ -31,46 +31,53 @@ namespace JANOARG.Shared.Data.Files
                 foreach (string l in lines)
                 {
                     string line = l.TrimStart();
+                    
+                    bool isInSection = line.StartsWith("[") && line.EndsWith("]");
+                    bool isStoryboardToken = line.StartsWith("$");
+                    bool isObjectToken = line.StartsWith("+");
+                    bool isMetadata = line.Contains(": ");
+                    
                     index++;
 
-                    if (line.StartsWith("[") && line.EndsWith("]"))
+                    if (isInSection)
                     {
                         mode = line[1..^1];
 
-                        if (mode == "VERSION")
+                        switch (mode)
                         {
-                            currentObject = "version";
-                        }
-                        else if (mode == "METADATA")
-                        {
-                            currentObject = chart;
-                        }
-                        else if (mode == "CAMERA")
-                        {
-                            currentObject = chart.Camera;
-                            currentStoryboard = chart.Camera.Storyboard;
-                        }
-                        else if (mode == "PALLETE")
-                        {
-                            currentObject = chart.Palette;
-                            currentStoryboard = chart.Palette.Storyboard;
-                        }
-                        else if (mode == "GROUPS")
-                        {
-                            currentObject = chart.Groups;
-                            currentStoryboard = null;
-                        }
-                        else if (mode == "OBJECTS")
-                        {
-                            currentObject = chart.Lanes;
-                            currentStoryboard = null;
-                        }
-                        else
-                        {
-                            throw new Exception("The specified mode " + mode + " is not a valid mode.");
+                            case "VERSION":
+                                currentObject = "version";
+
+                                break;
+                            case "METADATA":
+                                currentObject = chart;
+
+                                break;
+                            case "CAMERA":
+                                currentObject = chart.Camera;
+                                currentStoryboard = chart.Camera.Storyboard;
+
+                                break;
+                            case "PALLETE":
+                                currentObject = chart.Palette;
+                                currentStoryboard = chart.Palette.Storyboard;
+
+                                break;
+                            case "GROUPS":
+                                currentObject = chart.Groups;
+                                currentStoryboard = null;
+
+                                break;
+                            case "OBJECTS":
+                                currentObject = chart.Lanes;
+                                currentStoryboard = null;
+
+                                break;
+                            default:
+                                throw new Exception("The specified mode " + mode + " is not a valid mode.");
                         }
                     }
-                    else if (line.StartsWith("$"))
+                    else if (isStoryboardToken)
                     {
                         string[] tokens = line.Split(' ');
 
@@ -93,39 +100,36 @@ namespace JANOARG.Shared.Data.Files
                             throw new Exception("Not enough tokens (minimum 6, got " + tokens.Length + ").");
                         }
                     }
-                    else if (line.StartsWith("+"))
+                    else if (isObjectToken)
                     {
                         string[] tokens = line.Split(' ');
 
                         if (tokens.Length < 2) throw new Exception("Object token expected but not found.");
 
-                        if (tokens[1] == "Group")
+                        switch (tokens[1])
                         {
-                            if (tokens.Length >= 8)
+                            case "Group":
                             {
+                                if (tokens.Length < 8)
+                                    throw new Exception("Not enough tokens (minimum 8, got " + tokens.Length + ").");
+                                
                                 LaneGroup group = new()
                                 {
-                                    Position = new Vector3(
-                                        ParseFloat(tokens[2]), ParseFloat(tokens[3]),
-                                        ParseFloat(tokens[4])),
-                                    Rotation = new Vector3(
-                                        ParseFloat(tokens[5]), ParseFloat(tokens[6]),
-                                        ParseFloat(tokens[7]))
+                                    Position = new Vector3(ParseFloat(tokens[2]), ParseFloat(tokens[3]), ParseFloat(tokens[4])),
+                                    Rotation = new Vector3(ParseFloat(tokens[5]), ParseFloat(tokens[6]), ParseFloat(tokens[7]))
                                 };
 
                                 currentObject = group;
                                 currentStoryboard = group.Storyboard;
                                 chart.Groups.Add(group);
+
+                                break;
                             }
-                            else
+                            case "LaneStyle":
                             {
-                                throw new Exception("Not enough tokens (minimum 8, got " + tokens.Length + ").");
-                            }
-                        }
-                        else if (tokens[1] == "LaneStyle")
-                        {
-                            if (tokens.Length >= 10)
-                            {
+                                if (tokens.Length < 10)
+                                    throw new Exception("Not enough tokens (minimum 10, got " + tokens.Length + ").");
+                                
                                 LaneStyle style = new()
                                 {
                                     LaneColor = new Color(
@@ -139,16 +143,14 @@ namespace JANOARG.Shared.Data.Files
                                 currentObject = style;
                                 currentStoryboard = style.Storyboard;
                                 chart.Palette.LaneStyles.Add(style);
+
+                                break;
                             }
-                            else
+                            case "HitStyle":
                             {
-                                throw new Exception("Not enough tokens (minimum 10, got " + tokens.Length + ").");
-                            }
-                        }
-                        else if (tokens[1] == "HitStyle")
-                        {
-                            if (tokens.Length >= 14)
-                            {
+                                if (tokens.Length < 14)
+                                    throw new Exception("Not enough tokens (minimum 14, got " + tokens.Length + ").");
+                                
                                 HitStyle style = new()
                                 {
                                     HoldTailColor = new Color(
@@ -165,16 +167,14 @@ namespace JANOARG.Shared.Data.Files
                                 currentObject = style;
                                 currentStoryboard = style.Storyboard;
                                 chart.Palette.HitStyles.Add(style);
+
+                                break;
                             }
-                            else
+                            case "Lane":
                             {
-                                throw new Exception("Not enough tokens (minimum 14, got " + tokens.Length + ").");
-                            }
-                        }
-                        else if (tokens[1] == "Lane")
-                        {
-                            if (tokens.Length >= 9)
-                            {
+                                if (tokens.Length < 9)
+                                    throw new Exception("Not enough tokens (minimum 9, got " + tokens.Length + ").");
+                                
                                 Lane lane = new()
                                 {
                                     Position = new Vector3(
@@ -189,16 +189,14 @@ namespace JANOARG.Shared.Data.Files
                                 currentObject = currentLane = lane;
                                 currentStoryboard = lane.Storyboard;
                                 chart.Lanes.Add(lane);
+
+                                break;
                             }
-                            else
+                            case "LaneStep":
                             {
-                                throw new Exception("Not enough tokens (minimum 9, got " + tokens.Length + ").");
-                            }
-                        }
-                        else if (tokens[1] == "LaneStep")
-                        {
-                            if (tokens.Length >= 12)
-                            {
+                                if (tokens.Length < 12)
+                                    throw new Exception("Not enough tokens (minimum 12, got " + tokens.Length + ").");
+                                
                                 LaneStep step = new()
                                 {
                                     Offset = ParseTime(tokens[2]),
@@ -215,16 +213,14 @@ namespace JANOARG.Shared.Data.Files
                                 currentObject = step;
                                 currentStoryboard = step.Storyboard;
                                 currentLane.LaneSteps.Add(step);
+
+                                break;
                             }
-                            else
+                            case "Hit":
                             {
-                                throw new Exception("Not enough tokens (minimum 12, got " + tokens.Length + ").");
-                            }
-                        }
-                        else if (tokens[1] == "Hit")
-                        {
-                            if (tokens.Length >= 9)
-                            {
+                                if (tokens.Length < 9)
+                                    throw new Exception("Not enough tokens (minimum 9, got " + tokens.Length + ").");
+                                
                                 HitObject hit = new()
                                 {
                                     Type = ParseEnum<HitObject.HitType>(tokens[2]),
@@ -240,74 +236,145 @@ namespace JANOARG.Shared.Data.Files
                                 currentObject = hit;
                                 currentStoryboard = hit.Storyboard;
                                 currentLane.Objects.Add(hit);
+
+                                break;
                             }
-                            else
-                            {
-                                throw new Exception("Not enough tokens (minimum 9, got " + tokens.Length + ").");
-                            }
-                        }
-                        else
-                        {
-                            throw new Exception("The specified object " + tokens[1] + " is not a valid object.");
+                            default:
+                                throw new Exception("The specified object " + tokens[1] + " is not a valid object.");
                         }
                     }
-                    else if (line.Contains(": "))
+                    else if (isMetadata)
                     {
-                        int pos = line.IndexOf(": ");
+                        int pos = line.IndexOf(": ", StringComparison.InvariantCulture);
                         string key = line[..pos];
-                        string value = line[(pos + 2)..];
+                        string value = line[(pos + 2)..].Trim();
 
-                        if (currentObject is Chart)
+                        switch (currentObject)
                         {
-                            if (key == "Index") chart.DifficultyIndex = ParseInt(value);
-                            else if (key == "Name") chart.DifficultyName = value;
-                            else if (key == "Charter") chart.CharterName = value;
-                            else if (key == "Alt Charter") chart.AltCharterName = value;
-                            else if (key == "Level") chart.DifficultyLevel = value;
-                            else if (key == "Constant") chart.ChartConstant = ParseFloat(value);
-                        }
-                        else if (currentObject is CameraController camera)
-                        {
-                            if (key == "Pivot") camera.CameraPivot = ParseVector(value);
-                            else if (key == "Rotation") camera.CameraRotation = ParseVector(value);
-                            else if (key == "Distance") camera.PivotDistance = ParseFloat(value);
-                        }
-                        else if (currentObject is Palette pallete)
-                        {
-                            if (key == "Background") pallete.BackgroundColor = ParseColor(value);
-                            else if (key == "Interface") pallete.InterfaceColor = ParseColor(value);
-                        }
-                        else if (currentObject is LaneGroup group)
-                        {
-                            if (key == "Name") group.Name = value;
-                            else if (key == "Group") group.Group = value;
-                        }
-                        else if (currentObject is LaneStyle laneStyle)
-                        {
-                            if (key == "Name") laneStyle.Name = value;
-                            else if (key == "Lane Material") laneStyle.LaneMaterial = value;
-                            else if (key == "Lane Target") laneStyle.LaneColorTarget = value;
-                            else if (key == "Judge Material") laneStyle.JudgeMaterial = value;
-                            else if (key == "Judge Target") laneStyle.JudgeColorTarget = value;
-                        }
-                        else if (currentObject is HitStyle hitStyle)
-                        {
-                            if (key == "Name") hitStyle.Name = value;
-                            else if (key == "Main Material") hitStyle.MainMaterial = value;
-                            else if (key == "Main Target") hitStyle.MainColorTarget = value;
-                            else if (key == "Hold Tail Material") hitStyle.HoldTailMaterial = value;
-                            else if (key == "Hold Tail Target") hitStyle.HoldTailColorTarget = value;
-                        }
-                        else if (currentObject is Lane lane)
-                        {
-                            if (key == "Name") lane.Name = value;
-                            else if (key == "Group") lane.Group = value;
+                            case Chart currentChart:
+                                switch (key)
+                                {
+                                    case "Index":
+                                        currentChart.DifficultyIndex = ParseInt(value);
+                                        break;
+                                    case "Name":
+                                        currentChart.DifficultyName = value;
+                                        break;
+                                    case "Charter":
+                                        currentChart.CharterName = value;
+                                        break;
+                                    case "Alt Charter":
+                                        currentChart.AltCharterName = value;
+                                        break;
+                                    case "Level":
+                                        currentChart.DifficultyLevel = value;
+                                        break;
+                                    case "Constant":
+                                        currentChart.ChartConstant = ParseFloat(value);
+                                        break;
+                                }
+                                break;
+                            
+                            case CameraController camera:
+                                switch (key)
+                                {
+                                    case "Pivot":
+                                        camera.CameraPivot = ParseVector(value);
+                                        break;
+                                    case "Rotation":
+                                        camera.CameraRotation = ParseVector(value);
+                                        break;
+                                    case "Distance":
+                                        camera.PivotDistance = ParseFloat(value);
+                                        break;
+                                }
+                                break;
+                            
+                            case Palette palette:
+                                switch (key)
+                                {
+                                    case "Background":
+                                        palette.BackgroundColor = ParseColor(value);
+                                        break;
+                                    case "Interface":
+                                        palette.InterfaceColor = ParseColor(value);
+                                        break;
+                                }
+                                break;
+                            
+                            case LaneGroup group:
+                                switch (key)
+                                {
+                                    case "Name":
+                                        group.Name = value;
+                                        break;
+                                    case "Group":
+                                        group.Group = value;
+                                        break;
+                                }
+                                break;
+                            
+                            case LaneStyle laneStyle:
+                                switch (key)
+                                {
+                                    case "Name":
+                                        laneStyle.Name = value;
+                                        break;
+                                    case "Lane Material":
+                                        laneStyle.LaneMaterial = value;
+                                        break;
+                                    case "Lane Target":
+                                        laneStyle.LaneColorTarget = value;
+                                        break;
+                                    case "Judge Material":
+                                        laneStyle.JudgeMaterial = value;
+                                        break;
+                                    case "Judge Target":
+                                        laneStyle.JudgeColorTarget = value;
+                                        break;
+                                }
+                                break;
+                            
+                            case HitStyle hitStyle:
+                                switch (key)
+                                {
+                                    case "Name":
+                                        hitStyle.Name = value;
+                                        break;
+                                    case "Main Material":
+                                        hitStyle.MainMaterial = value;
+                                        break;
+                                    case "Main Target":
+                                        hitStyle.MainColorTarget = value;
+                                        break;
+                                    case "Hold Tail Material":
+                                        hitStyle.HoldTailMaterial = value;
+                                        break;
+                                    case "Hold Tail Target":
+                                        hitStyle.HoldTailColorTarget = value;
+                                        break;
+                                }
+                                break;
+                            
+                            case Lane lane:
+                                switch (key)
+                                {
+                                    case "Name":
+                                        lane.Name = value;
+                                        break;
+                                    case "Group":
+                                        lane.Group = value;
+                                        break;
+                                }
+                                break;
                         }
                     }
                     else if (currentObject?.ToString() == "version")
                     {
-                        if (string.IsNullOrWhiteSpace(line)) continue;
-                        if (!int.TryParse(line, out int version)) continue;
+                        if (string.IsNullOrWhiteSpace(line)) 
+                            continue;
+                        if (!int.TryParse(line, out int version))
+                            continue;
 
                         if (version > FORMAT_VERSION)
                             throw new Exception(
@@ -381,10 +448,12 @@ namespace JANOARG.Shared.Data.Files
             if (slashPos >= 0)
             {
                 int bPos = number.IndexOf('b');
+                int wholePart = ParseInt(number[..bPos]);
+                int sign = number[0] == '-' ? -1 : 1;
 
                 return new BeatPosition(
-                    ParseInt(number[..bPos]),
-                    ParseInt(number[(bPos + 1)..slashPos]),
+                    wholePart,
+                    ParseInt(number[(bPos + 1)..slashPos]) * sign,
                     ParseInt(number[(slashPos + 1)..])
                 );
             }

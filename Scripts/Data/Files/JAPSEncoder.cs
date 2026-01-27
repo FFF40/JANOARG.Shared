@@ -11,52 +11,66 @@ namespace JANOARG.Shared.Data.Files
 
         public static string Encode(PlayableSong song, string clipName)
         {
-            var str = "JANOARG Playable Song Format\ngithub.com/FFF40/JANOARG";
+            string InsertAltSongArtist() => !string.IsNullOrWhiteSpace(song.AltSongArtist) ? $"\nAlt Artist: {song.AltSongArtist}" : string.Empty;
+            string InsertAltCoverArtist() => !string.IsNullOrWhiteSpace(song.Cover.AltArtistName) ? $"\nAlt Artist: {song.Cover.AltArtistName}" : string.Empty;
+            
+            string EncodeAllCoverLayers()
+            {
+                string result = string.Empty;
+                foreach (CoverLayer layer in song.Cover.Layers)
+                    result += EncodeCoverLayer(layer);
+                return result;
+            }
+            
+            string EncodeAllBPMStops()
+            {
+                string result = string.Empty;
+                foreach (BPMStop stop in song.Timing.Stops)
+                    result += EncodeBPMStop(stop);
+                return result;
+            }
+            
+            string EncodeAllExternalChartMetas()
+            {
+                string result = string.Empty;
+                foreach (ExternalChartMeta chart in song.Charts)
+                    result += EncodeExternalChartMeta(chart);
+                return result;
+            }
+            
+            string str = $@"JANOARG Playable Song Format
+github.com/FFF40/JANOARG
 
-            str += "\n\n[VERSION]\n" + FORMAT_VERSION;
+[VERSION]
+{FORMAT_VERSION}
 
-            str += "\n\n[METADATA]";
+[METADATA]
+Name: {song.SongName}
+Artist: {song.SongArtist}{InsertAltSongArtist()}
+Genre: {song.Genre}
+Location: {song.Location}
+Preview Range: {EncodeVector(song.PreviewRange)}
 
-            str += "\nName: " + song.SongName;
+[RESOURCES]
+Clip: {clipName}
 
-            if (!string.IsNullOrWhiteSpace(song.AltSongName))
-                str += "\nAlt Name: " + song.AltSongName;
+[COVER]
+Artist: {song.Cover.ArtistName} {InsertAltCoverArtist()}
+Background: {EncodeColor(song.Cover.BackgroundColor)}
+Icon: {song.Cover.IconTarget}
+Icon Center: {EncodeVector(song.Cover.IconCenter)}
+Icon Size: {song.Cover.IconSize.ToString(CultureInfo.InvariantCulture)}
+{EncodeAllCoverLayers()}
 
-            str += "\nArtist: " + song.SongArtist;
+[COLORS]
+Background: {EncodeColor(song.BackgroundColor)}
+Interface: {EncodeColor(song.InterfaceColor)}
 
-            if (!string.IsNullOrWhiteSpace(song.AltSongArtist))
-                str += "\nAlt Artist: " + song.AltSongArtist;
+[TIMING]
+{EncodeAllBPMStops()}
 
-            str += "\nGenre: " + song.Genre;
-            str += "\nLocation: " + song.Location;
-
-            str += "\nPreview Range: " + EncodeVector(song.PreviewRange);
-
-            str += "\n\n[RESOURCES]";
-            str += "\nClip: " + clipName;
-
-            str += "\n\n[COVER]";
-            str += "\nArtist: " + song.Cover.ArtistName;
-
-            if (!string.IsNullOrWhiteSpace(song.Cover.AltArtistName))
-                str += "\nAlt Artist: " + song.Cover.AltArtistName;
-
-            str += "\nBackground: " + EncodeColor(song.Cover.BackgroundColor);
-            str += "\nIcon: " + song.Cover.IconTarget;
-            str += "\nIcon Center: " + EncodeVector(song.Cover.IconCenter);
-            str += "\nIcon Size: " + song.Cover.IconSize.ToString(CultureInfo.InvariantCulture);
-            foreach (CoverLayer layer in song.Cover.Layers) str += EncodeCoverLayer(layer);
-
-            str += "\n\n[COLORS]";
-            str += "\nBackground: " + EncodeColor(song.BackgroundColor);
-            str += "\nInterface: " + EncodeColor(song.InterfaceColor);
-
-            str += "\n\n[TIMING]";
-            foreach (BPMStop stop in song.Timing.Stops) str += EncodeBPMStop(stop);
-
-            str += "\n\n[CHARTS]";
-            foreach (ExternalChartMeta chart in song.Charts) str += EncodeExternalChartMeta(chart);
-
+[CHARTS]
+{EncodeAllExternalChartMetas()}";
 
             return str;
         }
@@ -66,20 +80,9 @@ namespace JANOARG.Shared.Data.Files
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
 
-            string str = "\n" +
-                         indent +
-                         "+ Layer" +
-                         " " +
-                         layer.Scale.ToString(CultureInfo.InvariantCulture) +
-                         " " +
-                         EncodeVector(layer.Position) +
-                         " " +
-                         layer.ParallaxFactor.ToString(CultureInfo.InvariantCulture) +
-                         "\n" +
-                         indent2 +
-                         "Target: " +
-                         layer.Target +
-                         (layer.Tiling ? "\n" + indent2 + "Tiling" : "");
+            string tilingFlag = layer.Tiling ? $"\n{indent2}Tiling" : string.Empty;
+            
+            string str = $"{indent}+ Layer {layer.Scale.ToString(CultureInfo.InvariantCulture)} {EncodeVector(layer.Position)} {layer.ParallaxFactor.ToString(CultureInfo.InvariantCulture)}\n{indent2}Target: {layer.Target}{tilingFlag}\n";
 
             return str;
         }
@@ -89,17 +92,10 @@ namespace JANOARG.Shared.Data.Files
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
 
-            string str = "\n" +
-                         indent +
-                         "+ BPM" +
-                         " " +
-                         stop.Offset.ToString(CultureInfo.InvariantCulture) +
-                         " " +
-                         stop.BPM.ToString(CultureInfo.InvariantCulture) +
-                         " " +
-                         stop.Signature.ToString(CultureInfo.InvariantCulture) +
-                         " " +
-                         (stop.Significant ? "S" : "_");
+            string significantFlag = stop.Significant ? "S" : "_";
+            
+            string str =
+                $"{indent}+ BPM {stop.Offset.ToString(CultureInfo.InvariantCulture)} {stop.BPM.ToString(CultureInfo.InvariantCulture)} {stop.Signature.ToString(CultureInfo.InvariantCulture)} {significantFlag}\n";
 
             return str;
         }
@@ -109,40 +105,23 @@ namespace JANOARG.Shared.Data.Files
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
 
-            string str = "\n" +
-                         indent +
-                         "+ Chart" +
-                         "\n" +
-                         indent2 +
-                         "Target: " +
-                         chart.Target +
-                         "\n" +
-                         indent2 +
-                         "Index: " +
-                         chart.DifficultyIndex.ToString(CultureInfo.InvariantCulture) +
-                         "\n" +
-                         indent2 +
-                         "Name: " +
-                         chart.DifficultyName +
-                         "\n" +
-                         indent2 +
-                         "Charter: " +
-                         chart.CharterName +
-                         "\n" +
-                         indent2 +
-                         "Level: " +
-                         chart.DifficultyLevel +
-                         "\n" +
-                         indent2 +
-                         "Constant: " +
-                         chart.ChartConstant.ToString(CultureInfo.InvariantCulture);
+            string str = $@" {indent}+ Chart
+{indent2}Target: {chart.Target}
+{indent2}Index: {chart.DifficultyIndex.ToString(CultureInfo.InvariantCulture)}
+{indent2}Name: {chart.DifficultyName}
+{indent2}Charter: {chart.CharterName}
+{indent2}Level: {chart.DifficultyLevel}
+{indent2}Constant: {chart.ChartConstant.ToString(CultureInfo.InvariantCulture)}
+";
 
             return str;
         }
 
         public static string EncodeVector(Vector2 vec)
         {
-            return vec.x.ToString(CultureInfo.InvariantCulture) + " " + vec.y.ToString(CultureInfo.InvariantCulture);
+            return vec.x.ToString(CultureInfo.InvariantCulture) + 
+                   " " + 
+                   vec.y.ToString(CultureInfo.InvariantCulture);
         }
 
         public static string EncodeColor(Color col)

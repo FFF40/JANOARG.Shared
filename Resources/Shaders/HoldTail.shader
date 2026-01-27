@@ -16,6 +16,8 @@ Shader "JANOARG/Styles/Default - Hold Tail"
         Pass
         {
             CGPROGRAM
+            // Upgrade NOTE: excluded shader from DX11; has structs without semantics (struct v2f members fogCoord)
+            #pragma exclude_renderers d3d11
             #pragma vertex vert
             #pragma fragment frag
             // make fog work
@@ -53,7 +55,7 @@ Shader "JANOARG/Styles/Default - Hold Tail"
             {
                 // sample the texture
                 fixed4 col = tex2D(_MainTex, i.uv) * _Color;
-                col.a *= max(i.fogCoord.x, 0);
+                col.a *= min(max(i.fogCoord.x, 0), 1);
                 return col;
             }
             ENDCG

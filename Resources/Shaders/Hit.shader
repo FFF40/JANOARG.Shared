@@ -43,7 +43,7 @@ Shader "JANOARG/Styles/Default - Hit"
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                UNITY_TRANSFER_FOG(o,o.vertex);
+                UNITY_TRANSFER_FOG(o,o.vertex); 
                 return o;
             }
 
@@ -51,7 +51,7 @@ Shader "JANOARG/Styles/Default - Hit"
             {
                 // sample the texture
                 fixed4 col = tex2D(_MainTex, i.uv) * _Color;
-                col.a *= max(i.fogCoord.x, 0);
+                col.a *= min(max(i.fogCoord.x, 0) * 1.2, 1);
                 return col;
             }
             ENDCG

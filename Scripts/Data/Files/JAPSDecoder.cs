@@ -27,40 +27,66 @@ namespace JANOARG.Shared.Data.Files
             {
                 foreach (string l in lines)
                 {
+                    
                     string line = l.TrimStart();
+
+                    bool isInSection = line.StartsWith("[") && line.EndsWith("]");
+                    bool isObjectToken = line.StartsWith("+");
+                    bool isMetadata = line.Contains(": ");
+                    
                     index++;
 
-                    if (line.StartsWith("[") && line.EndsWith("]"))
+                    if (isInSection)
                     {
                         mode = line[1..^1];
 
-                        if (mode == "VERSION")
-                            currentObject = "version";
-                        else if (mode == "METADATA")
-                            currentObject = decodingSong;
-                        else if (mode == "RESOURCES")
-                            currentObject = decodingSong;
-                        else if (mode == "COVER")
-                            currentObject = decodingSong.Cover;
-                        else if (mode == "COLORS")
-                            currentObject = decodingSong;
-                        else if (mode == "TIMING")
-                            currentObject = decodingSong.Timing;
-                        else if (mode == "CHARTS")
-                            currentObject = decodingSong.Charts;
-                        else
-                            throw new Exception("The specified mode " + mode + " is not a valid mode.");
+                        switch (mode)
+                        {
+                            case "VERSION":
+                                currentObject = "version";
+
+                                break;
+                            case "METADATA":
+                            case "RESOURCES":
+                                currentObject = decodingSong;
+
+                                break;
+                            case "COVER":
+                                currentObject = decodingSong.Cover;
+
+                                break;
+                            case "COLORS":
+                                currentObject = decodingSong;
+
+                                break;
+                            case "TIMING":
+                                currentObject = decodingSong.Timing;
+
+                                break;
+                            case "CHARTS":
+                                currentObject = decodingSong.Charts;
+
+                                break;
+                            default:
+                                throw new Exception("The specified mode " + mode + " is not a valid mode.");
+                        }
                     }
-                    else if (line.StartsWith("+"))
+                    else if (isObjectToken)
                     {
                         string[] tokens = line.Split(' ');
 
-                        if (tokens.Length < 2) throw new Exception("Object token expected but not found.");
+                        string objectType = tokens[1];
+                        
+                        if (tokens.Length < 2)
+                            throw new Exception("Object token expected but not found.");
 
-                        if (tokens[1] == "Layer")
+                        switch (objectType)
                         {
-                            if (tokens.Length >= 6)
+                            case "Layer":
                             {
+                                if (tokens.Length < 6)
+                                    throw new Exception("Not enough tokens (minimum 6, got " + tokens.Length + ").");
+                                
                                 CoverLayer layer = new()
                                 {
                                     Scale = ParseFloat(tokens[2]),
@@ -70,16 +96,14 @@ namespace JANOARG.Shared.Data.Files
 
                                 decodingSong.Cover.Layers.Add(layer);
                                 currentObject = layer;
+
+                                break;
                             }
-                            else
+                            case "BPM":
                             {
-                                throw new Exception("Not enough tokens (minimum 6, got " + tokens.Length + ").");
-                            }
-                        }
-                        else if (tokens[1] == "BPM")
-                        {
-                            if (tokens.Length >= 6)
-                            {
+                                if (tokens.Length < 6)
+                                    throw new Exception("Not enough tokens (minimum 6, got " + tokens.Length + ").");
+                                
                                 BPMStop stop = new(ParseFloat(tokens[3]), ParseFloat(tokens[2]))
                                 {
                                     Signature = ParseInt(tokens[4]),
@@ -88,92 +112,159 @@ namespace JANOARG.Shared.Data.Files
 
                                 decodingSong.Timing.Stops.Add(stop);
                                 currentObject = stop;
-                            }
-                            else
-                            {
-                                throw new Exception("Not enough tokens (minimum 6, got " + tokens.Length + ").");
-                            }
-                        }
-                        else if (tokens[1] == "Chart")
-                        {
-                            ExternalChartMeta chart = new();
 
-                            decodingSong.Charts.Add(chart);
-                            currentObject = chart;
-                        }
-                        else
-                        {
-                            throw new Exception("The specified object " + tokens[1] + " is not a valid object.");
+                                break;
+                            }
+                            case "Chart":
+                            {
+                                ExternalChartMeta chart = new();
+
+                                decodingSong.Charts.Add(chart);
+                                currentObject = chart;
+
+                                break;
+                            }
+                            default:
+                                throw new Exception("The specified object " + objectType + " is not a valid object.");
                         }
                     }
-                    else if (line.Contains(": "))
+                    else if (isMetadata)
                     {
-                        int pos = line.IndexOf(": ");
+                        int pos = line.IndexOf(": ", StringComparison.InvariantCulture);
                         string key = line[..pos];
                         string value = line[(pos + 2)..];
 
-                        if (currentObject is PlayableSong song)
+                        switch (currentObject)
                         {
-                            if (key == "Name") song.SongName = value;
-                            if (key == "Alt Name") song.AltSongName = value;
-                            if (key == "Artist") song.SongArtist = value;
-                            if (key == "Alt Artist") song.AltSongArtist = value;
-                            if (key == "Genre") song.Genre = value;
-                            if (key == "Location") song.Location = value;
-                            if (key == "Preview Range") song.PreviewRange = ParseVector(value);
+                            case PlayableSong song:
+                            {
+                                switch (key)
+                                {
+                                    case "Name":
+                                        song.SongName = value;
 
-                            if (key == "Clip") song.ClipPath = value;
+                                        break;
+                                    case "Alt Name":
+                                        song.AltSongName = value;
 
-                            if (key == "Background") song.BackgroundColor = ParseColor(value);
-                            if (key == "Interface") song.InterfaceColor = ParseColor(value);
-                        }
-                        else if (currentObject is Cover cover)
-                        {
-                            if (key == "Artist") cover.ArtistName = value;
-                            else if (key == "Alt Artist") cover.AltArtistName = value;
-                            else if (key == "Background") cover.BackgroundColor = ParseColor(value);
-                            else if (key == "Icon") cover.IconTarget = value;
-                            else if (key == "Icon Center") cover.IconCenter = ParseVector(value);
-                            else if (key == "Icon Size") cover.IconSize = ParseFloat(value);
-                        }
-                        else if (currentObject is CoverLayer layer)
-                        {
-                            if (key == "Target") layer.Target = value;
-                        }
-                        else if (currentObject is ExternalChartMeta chart)
-                        {
-                            if (key == "Target") chart.Target = value;
-                            else if (key == "Index") chart.DifficultyIndex = ParseInt(value);
-                            else if (key == "Name") chart.DifficultyName = value;
-                            else if (key == "Charter") chart.CharterName = value;
-                            else if (key == "Level") chart.DifficultyLevel = value;
-                            else if (key == "Constant") chart.ChartConstant = ParseFloat(value);
+                                        break;
+                                    case "Artist":
+                                        song.SongArtist = value;
+
+                                        break;
+                                    case "Alt Artist":
+                                        song.AltSongArtist = value;
+
+                                        break;
+                                    case "Genre":
+                                        song.Genre = value;
+
+                                        break;
+                                    case "Location":
+                                        song.Location = value;
+
+                                        break;
+                                    case "Preview Range":
+                                        song.PreviewRange = ParseVector(value);
+
+                                        break;
+                                    case "Clip":
+                                        song.ClipPath = value;
+
+                                        break;
+                                    case "Background":
+                                        song.BackgroundColor = ParseColor(value);
+
+                                        break;
+                                    case "Interface":
+                                        song.InterfaceColor = ParseColor(value);
+
+                                        break;
+                                }
+
+                                break;
+                            }
+                            case Cover cover when key == "Artist":
+                                cover.ArtistName = value;
+
+                                break;
+                            case Cover cover when key == "Alt Artist":
+                                cover.AltArtistName = value;
+
+                                break;
+                            case Cover cover when key == "Background":
+                                cover.BackgroundColor = ParseColor(value);
+
+                                break;
+                            case Cover cover when key == "Icon":
+                                cover.IconTarget = value;
+
+                                break;
+                            case Cover cover when key == "Icon Center":
+                                cover.IconCenter = ParseVector(value);
+
+                                break;
+                            case Cover cover:
+                            {
+                                if (key == "Icon Size") cover.IconSize = ParseFloat(value);
+
+                                break;
+                            }
+                            case CoverLayer layer:
+                            {
+                                if (key == "Target") layer.Target = value;
+
+                                break;
+                            }
+                            case ExternalChartMeta chart when key == "Target":
+                                chart.Target = value;
+
+                                break;
+                            case ExternalChartMeta chart when key == "Index":
+                                chart.DifficultyIndex = ParseInt(value);
+
+                                break;
+                            case ExternalChartMeta chart when key == "Name":
+                                chart.DifficultyName = value;
+
+                                break;
+                            case ExternalChartMeta chart when key == "Charter":
+                                chart.CharterName = value;
+
+                                break;
+                            case ExternalChartMeta chart when key == "Level":
+                                chart.DifficultyLevel = value;
+
+                                break;
+                            case ExternalChartMeta chart:
+                            {
+                                if (key == "Constant") chart.ChartConstant = ParseFloat(value);
+
+                                break;
+                            }
                         }
                     }
                     else if (currentObject is CoverLayer layer)
                     {
-                        if (line == "Tiling") layer.Tiling = true;
+                        if (line == "Tiling") 
+                            layer.Tiling = true;
                     }
                     else if (currentObject?.ToString() == "version")
                     {
-                        if (string.IsNullOrWhiteSpace(line)) continue;
-                        if (!int.TryParse(line, out int version)) continue;
+                        if (string.IsNullOrWhiteSpace(line)) 
+                            continue;
+                        
+                        if (!int.TryParse(line, out int version)) 
+                            continue;
 
                         if (version > FORMAT_VERSION)
-                            throw new Exception(
-                                "Chart version is newer than the supported format version. Please open this chart using a newer version of the Chartmaker.");
+                            throw new Exception("Chart version is newer than the supported format version. Please open this chart using a newer version of the Chartmaker.");
                     }
                 }
             }
             catch (Exception e)
             {
-                throw new Exception(
-                    "An error occurred while trying to decode line " +
-                    index +
-                    ":\nContent: " +
-                    lines[index - 1] +
-                    "\nException: " +
-                    e);
+                throw new Exception($"An error occurred while trying to decode line {index}:\nContent: {lines[index - 1]}\nException: {e}");
             }
 
             return decodingSong;
