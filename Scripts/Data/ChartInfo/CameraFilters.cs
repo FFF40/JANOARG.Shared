@@ -176,21 +176,23 @@ namespace JANOARG.Shared.Data.ChartInfo
             };
         }
 
+        private static Material NewMaterialFromShader(string path) => new(Resources.Load<Shader>(path));
+
         public static void LoadMaterials(string basePath = "Shaders/Camera/")
         {
-            sEffects[(int)EffectType.Bloom].Material               = new Material(Resources.Load<Shader>(basePath + "Bloom"));
-            sEffects[(int)EffectType.ChromaticAberration].Material = new Material(Resources.Load<Shader>(basePath + "ChromaticAberration"));
-            sEffects[(int)EffectType.FishEye].Material             = new Material(Resources.Load<Shader>(basePath + "FishEye"));
-            sEffects[(int)EffectType.Glitch].Material              = new Material(Resources.Load<Shader>(basePath + "Glitch"));
-            sEffects[(int)EffectType.Greyscale].Material           = new Material(Resources.Load<Shader>(basePath + "Greyscale"));
-            sEffects[(int)EffectType.HueShift].Material            = new Material(Resources.Load<Shader>(basePath + "HueShift"));
-            sEffects[(int)EffectType.Inversion].Material           = new Material(Resources.Load<Shader>(basePath + "Inversion"));
-            sEffects[(int)EffectType.Mosaic].Material              = new Material(Resources.Load<Shader>(basePath + "Mosaic"));
-            sEffects[(int)EffectType.Noise].Material               = new Material(Resources.Load<Shader>(basePath + "Noise"));
-            sEffects[(int)EffectType.Reflections].Material         = new Material(Resources.Load<Shader>(basePath + "Reflections"));
-            sEffects[(int)EffectType.Retro].Material               = new Material(Resources.Load<Shader>(basePath + "Retro"));
-            sEffects[(int)EffectType.SplitScreen].Material         = new Material(Resources.Load<Shader>(basePath + "SplitScreen"));
-            sEffects[(int)EffectType.Vignette].Material            = new Material(Resources.Load<Shader>(basePath + "Vignette"));
+            sEffects[(int)EffectType.Bloom].Material               = NewMaterialFromShader(basePath + "Bloom");
+            sEffects[(int)EffectType.ChromaticAberration].Material = NewMaterialFromShader(basePath + "ChromaticAberration");
+            sEffects[(int)EffectType.FishEye].Material             = NewMaterialFromShader(basePath + "FishEye");
+            sEffects[(int)EffectType.Glitch].Material              = NewMaterialFromShader(basePath + "Glitch");
+            sEffects[(int)EffectType.Greyscale].Material           = NewMaterialFromShader(basePath + "Greyscale");
+            sEffects[(int)EffectType.HueShift].Material            = NewMaterialFromShader(basePath + "HueShift");
+            sEffects[(int)EffectType.Inversion].Material           = NewMaterialFromShader(basePath + "Inversion");
+            sEffects[(int)EffectType.Mosaic].Material              = NewMaterialFromShader(basePath + "Mosaic");
+            sEffects[(int)EffectType.Noise].Material               = NewMaterialFromShader(basePath + "Noise");
+            sEffects[(int)EffectType.Reflections].Material         = NewMaterialFromShader(basePath + "Reflections");
+            sEffects[(int)EffectType.Retro].Material               = NewMaterialFromShader(basePath + "Retro");
+            sEffects[(int)EffectType.SplitScreen].Material         = NewMaterialFromShader(basePath + "SplitScreen");
+            sEffects[(int)EffectType.Vignette].Material            = NewMaterialFromShader(basePath + "Vignette");
         }
     }
 
