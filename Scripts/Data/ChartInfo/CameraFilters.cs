@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace JANOARG.Effects
+namespace JANOARG.Shared.Data.ChartInfo
 {
     [Serializable]
     public enum EffectType
