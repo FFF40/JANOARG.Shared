@@ -218,12 +218,6 @@ namespace JANOARG.Shared.Data.Files
                             }
                             case "Hit":
                             {
-                                // Maintain version 1 compatibility - default to false
-                                bool isFake;
-                                if (tokens.Length < 10)
-                                    isFake = true;
-                                else
-                                    isFake = tokens[9][0] == '_';
                                 
                                 if (tokens.Length < 9)
                                     throw new Exception("Not enough tokens (minimum 9, got " + tokens.Length + ").");
@@ -238,7 +232,7 @@ namespace JANOARG.Shared.Data.Files
                                     Flickable = tokens[7][0] == 'F',
                                     FlickDirection = tokens[7].Length > 1 ? ParseFloat(tokens[7][1..]) : float.NaN,
                                     StyleIndex = ParseInt(tokens[8]),
-                                    IsFake = isFake
+                                    IsFake = tokens.Length > 9 && (tokens[9] == "_")
                                 };
 
                                 currentObject = hit;
