@@ -817,6 +817,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public int StyleIndex = 0;
 
+        public bool IsFake;
+
         public enum HitType
         {
             Normal,
@@ -854,6 +856,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Flickable = Flickable,
                 FlickDirection = FlickDirection,
                 StyleIndex = StyleIndex,
+                IsFake = IsFake,
                 Storyboard = Storyboard.SelfReference()
             };
 
