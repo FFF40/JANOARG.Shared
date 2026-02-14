@@ -282,10 +282,14 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
                 hit.Flickable
                     ? "F" + flickValue
                     : "N";
+
+            string fakeFlag = hit.IsFake
+                ? "_"
+                : "-";
             
             string styleIndex = hit.StyleIndex.ToString(CultureInfo.InvariantCulture);
             
-            string str = $"\n{indent}+ Hit {hit.Type} {hitObjectValues} {flickFlag} {styleIndex} {EncodeStoryboard(hit, depth + INDENT_SIZE)}";
+            string str = $"\n{indent}+ Hit {hit.Type} {hitObjectValues} {flickFlag} {styleIndex} {fakeFlag} {EncodeStoryboard(hit, depth + INDENT_SIZE)}";
             return str;
         }
 

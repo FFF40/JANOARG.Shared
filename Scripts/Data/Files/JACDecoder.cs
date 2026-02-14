@@ -218,7 +218,7 @@ namespace JANOARG.Shared.Data.Files
                             }
                             case "Hit":
                             {
-                                if (tokens.Length < 9)
+                                if (tokens.Length < 10)
                                     throw new Exception("Not enough tokens (minimum 9, got " + tokens.Length + ").");
                                 
                                 HitObject hit = new()
@@ -230,7 +230,8 @@ namespace JANOARG.Shared.Data.Files
                                     HoldLength = ParseFloat(tokens[6]),
                                     Flickable = tokens[7][0] == 'F',
                                     FlickDirection = tokens[7].Length > 1 ? ParseFloat(tokens[7][1..]) : float.NaN,
-                                    StyleIndex = ParseInt(tokens[8])
+                                    StyleIndex = ParseInt(tokens[8]),
+                                    IsFake = tokens[9] == "_"
                                 };
 
                                 currentObject = hit;
