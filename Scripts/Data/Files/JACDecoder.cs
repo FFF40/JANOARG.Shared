@@ -7,7 +7,7 @@ namespace JANOARG.Shared.Data.Files
 {
     public class JACDecoder
     {
-        public const int FORMAT_VERSION = 1;
+        public const int FORMAT_VERSION = 2;
         public const int INDENT_SIZE    = 2;
 
         public static Chart Decode(string str)
@@ -230,7 +230,8 @@ namespace JANOARG.Shared.Data.Files
                                     HoldLength = ParseFloat(tokens[6]),
                                     Flickable = tokens[7][0] == 'F',
                                     FlickDirection = tokens[7].Length > 1 ? ParseFloat(tokens[7][1..]) : float.NaN,
-                                    StyleIndex = ParseInt(tokens[8])
+                                    StyleIndex = ParseInt(tokens[8]),
+                                    IsFake = tokens.Length > 9 && (tokens[9] == "_")
                                 };
 
                                 currentObject = hit;

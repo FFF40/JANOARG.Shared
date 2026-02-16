@@ -7,7 +7,7 @@ namespace JANOARG.Shared.Data.Files
 {
     public class JACEncoder
     {
-        public const int FORMAT_VERSION = 1;
+        public const int FORMAT_VERSION = 2;
         public const int INDENT_SIZE    = 2;
 
         public static string Encode(Chart chart)
@@ -282,10 +282,14 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
                 hit.Flickable
                     ? "F" + flickValue
                     : "N";
+
+            string fakeFlag = hit.IsFake
+                ? "_"
+                : "-";
             
             string styleIndex = hit.StyleIndex.ToString(CultureInfo.InvariantCulture);
             
-            string str = $"\n{indent}+ Hit {hit.Type} {hitObjectValues} {flickFlag} {styleIndex} {EncodeStoryboard(hit, depth + INDENT_SIZE)}";
+            string str = $"\n{indent}+ Hit {hit.Type} {hitObjectValues} {flickFlag} {styleIndex} {fakeFlag} {EncodeStoryboard(hit, depth + INDENT_SIZE)}";
             return str;
         }
 
