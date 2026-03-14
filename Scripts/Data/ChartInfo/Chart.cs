@@ -10,9 +10,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class Chart : IDeepClonable<Chart>, IUuidIdentifiableChartObject
+    public class Chart : IDeepClonable<Chart>
     {
-        public ulong UUID { get; private set; }
+        public ulong HighestUuid { get; set; }
         public string DifficultyName  = "Normal";
         public string DifficultyLevel = "6";
         public int    DifficultyIndex = 1;
