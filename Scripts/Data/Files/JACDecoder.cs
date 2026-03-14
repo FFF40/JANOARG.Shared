@@ -226,7 +226,6 @@ namespace JANOARG.Shared.Data.Files
                             {
                                 if (tokens.Length < 9)
                                     throw new Exception("Not enough tokens (minimum 9, got " + tokens.Length + ").");
-
                                 
                                 HitObject hit = new()
                                 {
