@@ -88,13 +88,15 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
 
             return str;
         }
+        
+        private string EncodeUuid(ulong uuid) => $"@{uuid}";
 
-        public static string EncodeStoryboard(Storyboardable storyboard, int depth = 0)
+        private static string EncodeStoryboard(Storyboardable storyboard, int depth = 0)
         {
             return EncodeStoryboard(storyboard.Storyboard, depth);
         }
 
-        public static string EncodeStoryboard(Storyboard storyboard, int depth = 0)
+        private static string EncodeStoryboard(Storyboard storyboard, int depth = 0)
         {
             var str = "";
             string indent = new(' ', depth);
@@ -106,14 +108,13 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
                 $"\n{indent}$ {timestamp.ID} {timestamp.Offset.ToString(ic)} {timestamp.Duration.ToString(ic)} {timestamp.Target.ToString(ic)} {FetchTimestamFrom(timestamp)} {EncodeEase(timestamp.Easing)}";
             string FetchTimestamFrom(Timestamp timestamp) => 
                 float.IsFinite(timestamp.From) ? timestamp.From.ToString(ic) : "_";
-
             foreach (Timestamp timestamp in storyboard.Timestamps)
                        str += PerStoryboardEncode(timestamp);
 
             return str;
         }
 
-        public static string EncodeLaneGroup(LaneGroup group, int depth = 0)
+        private static string EncodeLaneGroup(LaneGroup group, int depth = 0)
         {
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
@@ -128,7 +129,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
 
-        public static string EncodeLaneStyle(LaneStyle style, int depth = 0)
+        private static string EncodeLaneStyle(LaneStyle style, int depth = 0)
         {
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
@@ -169,7 +170,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
 
-        public static string EncodeHitStyle(HitStyle style, int depth = 0)
+        private static string EncodeHitStyle(HitStyle style, int depth = 0)
         {
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
@@ -211,7 +212,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
 
-        public static string EncodeLane(Lane lane, int depth = 0)
+        private static string EncodeLane(Lane lane, int depth = 0)
         {
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
@@ -249,7 +250,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
 
-        public static string EncodeLaneStep(LaneStep step, int depth = 0)
+        private static string EncodeLaneStep(LaneStep step, int depth = 0)
         {
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
@@ -266,7 +267,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
 
-        public static string EncodeHitObject(HitObject hit, int depth = 0)
+        private static string EncodeHitObject(HitObject hit, int depth = 0)
         {
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
@@ -293,7 +294,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
 
-        public static string EncodeEase(IEaseDirective ease)
+        private static string EncodeEase(IEaseDirective ease)
         {
             if (ease is BasicEaseDirective basicEaseDirective)
             {
@@ -314,14 +315,14 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             throw new Exception("Unknown ease directive " + ease.GetType());
         }
 
-        public static string EncodeVector(Vector2 vec)
+        private static string EncodeVector(Vector2 vec)
         {
             return vec.x.ToString(CultureInfo.InvariantCulture) + 
                    " " + 
                    vec.y.ToString(CultureInfo.InvariantCulture);
         }
 
-        public static string EncodeVector(Vector3 vec)
+        private static string EncodeVector(Vector3 vec)
         {
             return vec.x.ToString(CultureInfo.InvariantCulture) + 
                    " " + 
@@ -329,7 +330,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
                    vec.z.ToString(CultureInfo.InvariantCulture);
         }
 
-        public static string EncodeColor(Color col)
+        private static string EncodeColor(Color col)
         {
             return col.r.ToString(CultureInfo.InvariantCulture) + 
                    " " + 
