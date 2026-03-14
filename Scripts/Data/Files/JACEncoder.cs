@@ -10,7 +10,6 @@ namespace JANOARG.Shared.Data.Files
     {
         public const int FORMAT_VERSION = 2;
         public const int INDENT_SIZE    = 2;
-        private static ulong _highestUUID = 0;
 
         public static string Encode(Chart chart)
         {
@@ -71,7 +70,7 @@ Charter: {chart.CharterName}{InsertAltCharter()}
 Level: {chart.DifficultyLevel}
 Constant: {chart.ChartConstant.ToString(CultureInfo.InvariantCulture)}
 
-HighestUUID: {_highestUUID}
+HighestUUID: {chart.HighestUuid}
 
 [CAMERA]
 Pivot: {EncodeVector(chart.Camera.CameraPivot)}
