@@ -34,7 +34,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 ID = ID,
                 From = From,
                 Target = Target,
-                Easing = Easing
+                Easing = Easing,
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;

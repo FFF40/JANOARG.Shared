@@ -45,7 +45,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Camera = Camera.DeepClone(),
                 Palette = Palette.DeepClone(),
                 CameraPivot = new Vector3(CameraPivot.x, CameraPivot.y, CameraPivot.z),
-                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z)
+                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z),
             };
 
             foreach (LaneGroup group in Groups)
@@ -314,7 +314,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 JudgeMaterial = JudgeMaterial,
                 JudgeColorTarget = JudgeColorTarget,
                 JudgeColor = new Color(JudgeColor.r, JudgeColor.g, JudgeColor.b, JudgeColor.a),
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -443,7 +446,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 HoldTailMaterial = HoldTailMaterial,
                 HoldTailColorTarget = HoldTailColorTarget,
                 HoldTailColor = new Color(HoldTailColor.r, HoldTailColor.g, HoldTailColor.b, HoldTailColor.a),
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -518,7 +524,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Position = new Vector3(Position.x, Position.y, Position.z),
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Storyboard = Storyboard.SelfReference(),
-                Group = Group
+                Group = Group,
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -686,7 +695,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Group = Group,
                 StyleIndex = StyleIndex,
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             foreach (HitObject obj in Objects)
@@ -788,7 +800,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 EndEaseX = EndEaseX,
                 EndEaseY = EndEaseY,
                 Speed = Speed,
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -865,7 +880,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 FlickDirection = FlickDirection,
                 StyleIndex = StyleIndex,
                 IsFake = IsFake,
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
