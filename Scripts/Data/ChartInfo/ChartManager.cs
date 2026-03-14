@@ -66,6 +66,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             FlicksRemaining = 0;
             ActiveLaneCount = ActiveHitCount = ActiveLaneVerts = ActiveLaneTris = 0;
 
+            if (CurrentChart.HighestUuid != HighestUuid)
+                CurrentChart.HighestUuid = HighestUuid;
+            
             for (var a = 0; a < CurrentChart.Groups.Count; a++)
             {
                 var group = (LaneGroup)CurrentChart.Groups[a]
