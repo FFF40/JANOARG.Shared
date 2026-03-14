@@ -61,7 +61,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class CameraController : Storyboardable, IDeepClonable<CameraController>, IUuidIdentifiableChartObject
     {
-        public ulong UUID { get; private set; }
+        public ulong UUID { get; set; }
         public Vector3 CameraPivot;
         public float   PivotDistance = 10;
         public Vector3 CameraRotation;
@@ -227,7 +227,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class LaneStyle : Storyboardable, IDeepClonable<LaneStyle>, IUuidIdentifiableChartObject
     {
-        public ulong  UUID { get; private set; }
+        public ulong  UUID { get; set; }
         public string Name;
 
         public string LaneMaterial    = "Default";
@@ -324,7 +324,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class HitStyle : Storyboardable, IDeepClonable<HitStyle>, IUuidIdentifiableChartObject
     {
-        public ulong UUID { get; private set; }
+        public ulong UUID { get; set; }
         public string Name;
 
         public string MainMaterial    = "Default";
@@ -453,7 +453,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class LaneGroup : Storyboardable, IDeepClonable<LaneGroup>, IUuidIdentifiableChartObject
     {
-        public ulong UUID { get; private set; }
+        public ulong UUID { get; set; }
         public string  Name;
         public Vector3 Position;
         public Vector3 Rotation;
@@ -536,7 +536,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class Lane : DirtyTrackedStoryboardable, IDeepClonable<Lane>, IUuidIdentifiableChartObject
     {
-        public ulong UUID { get; private set; }
+        public ulong UUID { get; set; }
         public string Name;
 
         public List<HitObject> Objects   = new();
@@ -702,7 +702,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class LaneStep : DirtyTrackedStoryboardable, IDeepClonable<LaneStep>, IUuidIdentifiableChartObject
     {
-        public ulong UUID { get; private set; }
+        public ulong UUID { get; set; }
         public BeatPosition Offset = new();
 
         [FormerlySerializedAs("StartPos")]
@@ -812,7 +812,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class HitObject : DirtyTrackedStoryboardable, IDeepClonable<HitObject>, IUuidIdentifiableChartObject
     {
-        public ulong UUID { get; private set; }
+        public ulong UUID { get; set; }
         public HitType      Type;
         public BeatPosition Offset = new();
         public float        Position;

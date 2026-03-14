@@ -13,7 +13,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [Serializable]
     public class Timestamp : IDeepClonable<Timestamp>, IUuidIdentifiableChartObject
     {
-        public ulong UUID { get; private set; }
+        public ulong UUID { get; set; }
         [FormerlySerializedAs("Time")]
         public BeatPosition Offset;
 
