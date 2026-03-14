@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using JANOARG.Shared.Data.ChartInfo;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace JANOARG.Shared.Data.Files
 {
@@ -89,7 +90,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
         
-        private string EncodeUuid(ulong uuid) => $"@{uuid}";
+        private static string EncodeUuid(ulong uuid) => uuid > 0 ? $"@{uuid}" : string.Empty;
 
         private static string EncodeStoryboard(Storyboardable storyboard, int depth = 0)
         {
@@ -104,9 +105,9 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             // Shorten the line 
             CultureInfo ic = CultureInfo.InvariantCulture;
             
-            string PerStoryboardEncode(Timestamp timestamp) => 
-                $"\n{indent}$ {timestamp.ID} {timestamp.Offset.ToString(ic)} {timestamp.Duration.ToString(ic)} {timestamp.Target.ToString(ic)} {FetchTimestamFrom(timestamp)} {EncodeEase(timestamp.Easing)}";
-            string FetchTimestamFrom(Timestamp timestamp) => 
+            string PerStoryboardEncode(Timestamp timestamp) =>
+                $"\n{indent}$ {timestamp.ID} {timestamp.Offset.ToString(ic)} {timestamp.Duration.ToString(ic)} {timestamp.Target.ToString(ic)} {FetchTimestamFrom(timestamp)} {EncodeEase(timestamp.Easing)}{EncodeUuid(timestamp.UUID)}";
+            string FetchTimestamFrom(Timestamp timestamp) =>
                 float.IsFinite(timestamp.From) ? timestamp.From.ToString(ic) : "_";
             foreach (Timestamp timestamp in storyboard.Timestamps)
                        str += PerStoryboardEncode(timestamp);
@@ -124,7 +125,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
                     ? $"\n{indent2}Group: {group.Group}"
                     : "";
 
-            string str = $"{indent}+ Group {EncodeVector(group.Position)} {EncodeVector(group.Rotation)}\n{indent2}Name: {group.Name}{parentGroupEncode}{EncodeStoryboard(group, depth + INDENT_SIZE)}\n";
+            string str = $"{indent}+ Group {EncodeVector(group.Position)} {EncodeVector(group.Rotation)} {EncodeUuid(group.UUID)}\n{indent2}Name: {group.Name}{parentGroupEncode}{EncodeStoryboard(group, depth + INDENT_SIZE)}\n";
 
             return str;
         }
@@ -165,7 +166,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             string laneStyleDatas = $"{laneStyleMaterial}{laneStyleColorTarget}{laneStyleJudgeMaterial}{laneStyleJudgeColorTarget}";
             
             string str = 
-                $"\n{indent}+ LaneStyle {EncodeColor(style.LaneColor)} {EncodeColor(style.JudgeColor)}{laneStyleName}{laneStyleDatas}{EncodeStoryboard(style, depth + INDENT_SIZE)}";
+                $"\n{indent}+ LaneStyle {EncodeColor(style.LaneColor)} {EncodeColor(style.JudgeColor)}{laneStyleName}{laneStyleDatas}{EncodeUuid(style.UUID)}{EncodeStoryboard(style, depth + INDENT_SIZE)}";
             
             return str;
         }
@@ -207,7 +208,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
 
             string hitStyleColors = $"{EncodeColor(style.HoldTailColor)} {EncodeColor(style.NormalColor)} {EncodeColor(style.CatchColor)}";
             
-            string str = $"\n{indent}+ HitStyle {hitStyleColors}{hitStyleName}{hitStyleDatas}{EncodeStoryboard(style, depth + INDENT_SIZE)}";
+            string str = $"\n{indent}+ HitStyle {hitStyleColors}{hitStyleName}{hitStyleDatas}{EncodeUuid(style.UUID)}{EncodeStoryboard(style, depth + INDENT_SIZE)}";
             
             return str;
         }
@@ -245,7 +246,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             
             string laneData = $"{EncodeAllLaneStep()}{EncodeAllHitObject()}";
             
-            string str  = $"\n{indent}+ Lane {EncodeVector(lane.Position)} {EncodeVector(lane.Rotation)} {laneStyleIndex}{laneInfo}{EncodeStoryboard(lane, depth + INDENT_SIZE)}{laneData}";
+            string str  = $"\n{indent}+ Lane {EncodeVector(lane.Position)} {EncodeVector(lane.Rotation)} {laneStyleIndex} {EncodeUuid(lane.UUID)}{laneInfo} {EncodeStoryboard(lane, depth + INDENT_SIZE)}{laneData}";
             
             return str;
         }
@@ -262,7 +263,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             
             string speed = step.Speed.ToString(CultureInfo.InvariantCulture);
             
-            string str = $"\n{indent}+ LaneStep {offset} {laneStepStartPointData} {laneStepEndPointData} {speed}{EncodeStoryboard(step, depth + INDENT_SIZE)}";
+            string str = $"\n{indent}+ LaneStep {offset} {laneStepStartPointData} {laneStepEndPointData} {speed} {EncodeUuid(step.UUID)} {EncodeStoryboard(step, depth + INDENT_SIZE)}";
 
             return str;
         }
@@ -290,7 +291,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             
             string styleIndex = hit.StyleIndex.ToString(CultureInfo.InvariantCulture);
             
-            string str = $"\n{indent}+ Hit {hit.Type} {hitObjectValues} {flickFlag} {styleIndex} {fakeFlag} {EncodeStoryboard(hit, depth + INDENT_SIZE)}";
+            string str = $"\n{indent}+ Hit {hit.Type} {hitObjectValues} {flickFlag} {styleIndex} {fakeFlag} {EncodeUuid(hit.UUID)}{EncodeStoryboard(hit, depth + INDENT_SIZE)}";
             return str;
         }
 
