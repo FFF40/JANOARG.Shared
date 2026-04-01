@@ -328,7 +328,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public readonly Vector2 Point1;
         public readonly Vector2 Point2;
 
-        private readonly float[] _Samples;
+        [SerializeField] private float[] _Samples;
 
         public CubicBezierEaseDirective(Vector2 point1, Vector2 point2)
         {
@@ -354,13 +354,17 @@ namespace JANOARG.Shared.Data.ChartInfo
         private void UpdateSamples()
         {
             float step = 1.0f / (_Samples.Length - 1);
-            for (var t = 0; t < _Samples.Length - 1; t++) _Samples[t] = GetBezier(t * step, Point1.x, Point2.x);
+            for (var t = 0; t < _Samples.Length - 1; t++)
+                _Samples[t] = GetBezier(t * step, Point1.x, Point2.x);
         }
 
         public float Get(float x)
         {
             if (x == 0 || Mathf.Approximately(x, 1)) return x;
 
+            Debug.Assert(_Samples != null, "CubicBezierEaseDirective: Samples array is null");
+            Debug.Assert(_Samples.Length > 1, "CubicBezierEaseDirective: Samples array is empty");
+            
             int nIndex = Array.FindIndex(_Samples, n => n > x);
             nIndex = Math.Max(nIndex, 1);
 
