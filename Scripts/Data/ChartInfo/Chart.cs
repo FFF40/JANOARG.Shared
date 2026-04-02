@@ -12,6 +12,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     [System.Serializable]
     public class Chart : IDeepClonable<Chart>
     {
+        public ulong HighestUuid { get; set; }
         public string DifficultyName  = "Normal";
         public string DifficultyLevel = "6";
         public int    DifficultyIndex = 1;
@@ -44,7 +45,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Camera = Camera.DeepClone(),
                 Palette = Palette.DeepClone(),
                 CameraPivot = new Vector3(CameraPivot.x, CameraPivot.y, CameraPivot.z),
-                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z)
+                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z),
             };
 
             foreach (LaneGroup group in Groups)
@@ -58,8 +59,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class CameraController : Storyboardable, IDeepClonable<CameraController>
+    public class CameraController : Storyboardable, IDeepClonable<CameraController>, IUuidIdentifiableChartObject
     {
+        public ulong UUID { get; set; }
         public Vector3 CameraPivot;
         public float   PivotDistance = 10;
         public Vector3 CameraRotation;
@@ -223,8 +225,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class LaneStyle : Storyboardable, IDeepClonable<LaneStyle>
+    public class LaneStyle : Storyboardable, IDeepClonable<LaneStyle>, IUuidIdentifiableChartObject
     {
+        public ulong  UUID { get; set; }
         public string Name;
 
         public string LaneMaterial    = "Default";
@@ -311,7 +314,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 JudgeMaterial = JudgeMaterial,
                 JudgeColorTarget = JudgeColorTarget,
                 JudgeColor = new Color(JudgeColor.r, JudgeColor.g, JudgeColor.b, JudgeColor.a),
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -319,8 +325,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class HitStyle : Storyboardable, IDeepClonable<HitStyle>
+    public class HitStyle : Storyboardable, IDeepClonable<HitStyle>, IUuidIdentifiableChartObject
     {
+        public ulong UUID { get; set; }
         public string Name;
 
         public string MainMaterial    = "Default";
@@ -439,7 +446,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 HoldTailMaterial = HoldTailMaterial,
                 HoldTailColorTarget = HoldTailColorTarget,
                 HoldTailColor = new Color(HoldTailColor.r, HoldTailColor.g, HoldTailColor.b, HoldTailColor.a),
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -447,8 +457,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class LaneGroup : Storyboardable, IDeepClonable<LaneGroup>
+    public class LaneGroup : Storyboardable, IDeepClonable<LaneGroup>, IUuidIdentifiableChartObject
     {
+        public ulong UUID { get; set; }
         public string  Name;
         public Vector3 Position;
         public Vector3 Rotation;
@@ -513,7 +524,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Position = new Vector3(Position.x, Position.y, Position.z),
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Storyboard = Storyboard.SelfReference(),
-                Group = Group
+                Group = Group,
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -529,8 +543,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class Lane : DirtyTrackedStoryboardable, IDeepClonable<Lane>
+    public class Lane : DirtyTrackedStoryboardable, IDeepClonable<Lane>, IUuidIdentifiableChartObject
     {
+        public ulong UUID { get; set; }
         public string Name;
 
         public List<HitObject> Objects   = new();
@@ -680,7 +695,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Group = Group,
                 StyleIndex = StyleIndex,
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             foreach (HitObject obj in Objects)
@@ -694,8 +712,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class LaneStep : DirtyTrackedStoryboardable, IDeepClonable<LaneStep>
+    public class LaneStep : DirtyTrackedStoryboardable, IDeepClonable<LaneStep>, IUuidIdentifiableChartObject
     {
+        public ulong UUID { get; set; }
         public BeatPosition Offset = new();
 
         [FormerlySerializedAs("StartPos")]
@@ -781,7 +800,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 EndEaseX = EndEaseX,
                 EndEaseY = EndEaseY,
                 Speed = Speed,
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
@@ -803,8 +825,9 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class HitObject : DirtyTrackedStoryboardable, IDeepClonable<HitObject>
+    public class HitObject : DirtyTrackedStoryboardable, IDeepClonable<HitObject>, IUuidIdentifiableChartObject
     {
+        public ulong UUID { get; set; }
         public HitType      Type;
         public BeatPosition Offset = new();
         public float        Position;
@@ -857,7 +880,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 FlickDirection = FlickDirection,
                 StyleIndex = StyleIndex,
                 IsFake = IsFake,
-                Storyboard = Storyboard.SelfReference()
+                Storyboard = Storyboard.SelfReference(),
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;

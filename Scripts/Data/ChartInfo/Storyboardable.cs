@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,8 +11,9 @@ using UnityEngine.Serialization;
 namespace JANOARG.Shared.Data.ChartInfo
 {
     [Serializable]
-    public class Timestamp : IDeepClonable<Timestamp>
+    public class Timestamp : IDeepClonable<Timestamp>, IUuidIdentifiableChartObject
     {
+        public ulong UUID { get; set; }
         [FormerlySerializedAs("Time")]
         public BeatPosition Offset;
 
@@ -32,7 +34,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 ID = ID,
                 From = From,
                 Target = Target,
-                Easing = Easing
+                Easing = Easing,
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;

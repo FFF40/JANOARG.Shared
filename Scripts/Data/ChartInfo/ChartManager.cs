@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Object = UnityEngine.Object;
+using Random = System.Random;
 
 namespace JANOARG.Shared.Data.ChartInfo
 {
@@ -13,7 +14,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Dictionary<string, LaneGroupManager> Groups         = new();
         public List<LaneManager>                    Lanes          = new();
         public HitMeshManager                       HitMeshManager = new();
-        public PalleteManager                       PalleteManager = new();
+        public PalleteManager                       PalleteManager;
         public CameraController                     Camera;
 
         public float CurrentSpeed;
@@ -26,12 +27,35 @@ namespace JANOARG.Shared.Data.ChartInfo
         public int ActiveLaneVerts;
         public int ActiveLaneTris;
 
+        public ulong HighestUuid;
+
         public ChartManager(PlayableSong song, Chart chart, float speed, float time, float pos)
         {
             Song = song;
+            PalleteManager = new PalleteManager(this);
             CurrentChart = chart;
             CurrentSpeed = speed;
+            HighestUuid = chart.HighestUuid > 0 ? chart.HighestUuid : SeedUuid();
             Update(time, pos);
+
+            ulong SeedUuid()
+            {
+                ulong GenerateRandomSalt()
+                {
+                    byte[] bytes = new byte[8];
+                    System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+                    return BitConverter.ToUInt64(bytes, 0);
+                }
+                // Combine metadata fields for unique seed (fancy impure prng)
+                string seedString = $"{chart.DifficultyName}{chart.CharterName}{chart.DifficultyLevel}{chart.ChartConstant}{GenerateRandomSalt()}";
+    
+                // Hash to ulong
+                using (var sha256 = System.Security.Cryptography.SHA256.Create())
+                {
+                    byte[] hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(seedString));
+                    return BitConverter.ToUInt32(hash, 0);
+                }
+            }
         }
 
         public void Update(float time, float pos)
@@ -42,6 +66,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             FlicksRemaining = 0;
             ActiveLaneCount = ActiveHitCount = ActiveLaneVerts = ActiveLaneTris = 0;
 
+            if (CurrentChart.HighestUuid != HighestUuid)
+                CurrentChart.HighestUuid = HighestUuid;
+            
             for (var a = 0; a < CurrentChart.Groups.Count; a++)
             {
                 var group = (LaneGroup)CurrentChart.Groups[a]
@@ -96,11 +123,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class PalleteManager
     {
-        public Palette CurrentPallete;
+        public  Palette      CurrentPallete;
+        private ChartManager chartManager;
 
         public List<LaneStyleManager> LaneStyles = new();
         public List<HitStyleManager>  HitStyles  = new();
 
+        public PalleteManager (ChartManager main) => chartManager = main;
+        
         public void Update(Palette pallete, float pos)
         {
             CurrentPallete = pallete = (Palette)pallete.GetStoryboardableObject(pos);
@@ -111,7 +141,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     .GetStoryboardableObject(pos);
 
                 if (LaneStyles.Count <= a)
-                    LaneStyles.Add(new LaneStyleManager(style));
+                    LaneStyles.Add(new LaneStyleManager(style, chartManager));
                 else
                     LaneStyles[a]
                         .Update(style);
@@ -130,7 +160,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 var style = (HitStyle)pallete.HitStyles[a]
                     .GetStoryboardableObject(pos);
 
-                if (HitStyles.Count <= a) HitStyles.Add(new HitStyleManager(style));
+                if (HitStyles.Count <= a) HitStyles.Add(new HitStyleManager(style, chartManager));
                 else
                     HitStyles[a]
                         .Update(style);
@@ -149,14 +179,16 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class LaneStyleManager
     {
+        public ulong Uuid;
         public Material BaseLaneMaterial;
         public Material LaneMaterial;
 
         public Material BaseJudgeMaterial;
         public Material JudgeMaterial;
 
-        public LaneStyleManager(LaneStyle style)
+        public LaneStyleManager(LaneStyle style, ChartManager main)
         {
+            Uuid = style.UUID > 0 ? style.UUID : style.UUID = main.HighestUuid++;
             Update(style);
         }
 
@@ -182,6 +214,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class HitStyleManager
     {
+        public ulong    Uuid;
         public Material BaseMainMaterial;
         public Material NormalMaterial;
         public Material CatchMaterial;
@@ -195,8 +228,9 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material BaseHoldTailMaterial;
         public Material HoldTailMaterial;
 
-        public HitStyleManager(HitStyle style)
+        public HitStyleManager(HitStyle style, ChartManager main)
         {
+            Uuid = style.UUID > 0 ? style.UUID : style.UUID = main.HighestUuid++;
             Update(style);
         }
 
@@ -254,6 +288,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class LaneGroupManager
     {
+        public ulong      Uuid;
         public LaneGroup  CurrentGroup;
         public Vector3    FinalPosition;
         public Quaternion FinalRotation;
@@ -262,6 +297,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public LaneGroupManager(LaneGroup init, float pos, ChartManager main)
         {
+            Uuid = init.UUID > 0 ? init.UUID : init.UUID = main.HighestUuid++;
             Update(init, pos, main);
         }
 
@@ -306,6 +342,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class LaneManager
     {
+        public ulong                  Uuid;
         public Lane                   Original;
         public Lane                   Current;
         public List<LaneStepManager>  Steps       = new();
@@ -328,6 +365,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public LaneManager(Lane original, Lane current, float time, float pos, ChartManager main)
         {
+            Uuid = original.UUID > 0 ? original.UUID : original.UUID = main.HighestUuid++;
             Update(original, current, time, pos, main);
         }
 
@@ -920,6 +958,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public class HitObjectManager
     {
+        public ulong     Uuid;
         public HitObject Original;
         public HitObject Current;
         public float     TimeStart;
@@ -936,6 +975,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public HitObjectManager(HitObject original, HitObject current, float time, LaneManager lane, ChartManager main)
         {
+            Uuid = original.UUID > 0 ? original.UUID : original.UUID = main.HighestUuid++;
             Update(original, current, time, lane, main);
         }
 
