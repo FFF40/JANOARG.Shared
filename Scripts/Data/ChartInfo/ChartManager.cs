@@ -1,11 +1,29 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 using Random = System.Random;
 
 namespace JANOARG.Shared.Data.ChartInfo
 {
+    internal static class MaterialQueueUtility
+    {
+        private const int TransparentQueue = (int)RenderQueue.Transparent;
+
+        public static void NormalizeTransparentQueue(Material material)
+        {
+            if (!material)
+                return;
+
+            if (material.GetTag("Queue", false, string.Empty) == "Transparent" &&
+                material.renderQueue < TransparentQueue)
+            {
+                material.renderQueue = TransparentQueue;
+            }
+        }
+    }
+
     public class ChartManager
     {
         public PlayableSong Song;
@@ -198,7 +216,10 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             if (BaseLaneMaterial?.name != style.LaneMaterial) LaneMaterial = new Material(BaseLaneMaterial = Resources.Load<Material>("Materials/Lane/" + style.LaneMaterial));
 
-            if (BaseJudgeMaterial?.name != style.JudgeMaterial) JudgeMaterial = new Material(BaseJudgeMaterial = Resources.Load<Material>("Materials/Judge/" + style.LaneMaterial));
+            if (BaseJudgeMaterial?.name != style.JudgeMaterial) JudgeMaterial = new Material(BaseJudgeMaterial = Resources.Load<Material>("Materials/Judge/" + style.JudgeMaterial));
+
+            MaterialQueueUtility.NormalizeTransparentQueue(LaneMaterial);
+            MaterialQueueUtility.NormalizeTransparentQueue(JudgeMaterial);
 
             if (LaneMaterial) LaneMaterial.SetColor(style.LaneColorTarget, style.LaneColor);
             if (JudgeMaterial) JudgeMaterial.SetColor(style.JudgeColorTarget, style.JudgeColor);
@@ -252,6 +273,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 
                 HoldTailMaterial = new Material(BaseHoldTailMaterial = Resources.Load<Material>("Materials/Hold/" + style.HoldTailMaterial));
+
+            MaterialQueueUtility.NormalizeTransparentQueue(NormalMaterial);
+            MaterialQueueUtility.NormalizeTransparentQueue(CatchMaterial);
+            MaterialQueueUtility.NormalizeTransparentQueue(NormalHighlightMaterial);
+            MaterialQueueUtility.NormalizeTransparentQueue(NormalHighlightGlowMaterial);
+            MaterialQueueUtility.NormalizeTransparentQueue(CatchHighlightMaterial);
+            MaterialQueueUtility.NormalizeTransparentQueue(CatchHighlightGlowMaterial);
+            MaterialQueueUtility.NormalizeTransparentQueue(HoldTailMaterial);
 
             if (NormalMaterial)
                 NormalMaterial.SetColor(style.MainColorTarget, style.NormalColor);
