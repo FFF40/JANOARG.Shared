@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -107,26 +108,21 @@ namespace JANOARG.Shared.Data.ChartInfo
         
     }
 
-    [Serializable]
     public class Ease
     {
         public Func<float, float> In;
         public Func<float, float> Out;
         public Func<float, float> InOut;
 
-        private static bool s_cancelRequested;
-        private static bool s_forceCancelRequested;
-        
         /// <summary>
-        /// Properly finish the current Animate loop by skipping to callback(1).
-        /// Recommended to use this over StopCoroutine.
+        /// Skips all currently active Ease.Animate coroutines.
+        /// Also cleans up any stale handlers left by external StopCoroutine calls.
         /// </summary>
-        public static void Skip(bool force = false)
+        public static void SkipAll(bool force = false)
         {
-            s_cancelRequested = true;
-            
-            if (force) s_forceCancelRequested = true;
-            
+            foreach (var weak in EaseEnumerator.s_active)
+                if (weak.TryGetTarget(out var handler))
+                    handler.Skip(force);
         }
 
         [SuppressMessage("ReSharper", "CompareOfFloatsByEqualityOperator")] // We don't care about floating point errors here
@@ -154,35 +150,33 @@ namespace JANOARG.Shared.Data.ChartInfo
             FastPow(Get(x * multiplier - delay, func, mode), p);
 
         // We don't need DOTween, guys
-        
+
         /// <summary>
         /// Animates a value from 0 to 1 over specified duration, invoking callback each frame with linear progress.
-        /// Supports cancellation via Ease.Skip
+        /// Supports individual cancellation via the returned handler, or Ease.SkipAll for all active animations.
         /// </summary>
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="callback">Action receiving linear progress (0 to 1) each frame</param>
-        public static IEnumerator Animate(float duration, Action<float> callback)
+        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator Animate(float duration, Action<float> callback) =>
+            new EaseEnumerator(EaseEnumerator(duration, callback));
+
+        private static IEnumerator EaseEnumerator(float duration, Action<float> callback)
         {
+            var handler = EaseEnumerator.Current;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (s_cancelRequested)
+                if (handler.CancelRequested)
                 {
-                    s_cancelRequested = false;
+                    handler.CancelRequested = false;
                     break;
                 }
-                
                 callback(a);
-
                 yield return null;
             }
-
-            if (s_forceCancelRequested)
-            {
-                s_forceCancelRequested = false;
-                yield break;
-            }
-
+            if (handler.ForceCancelRequested) { handler.ForceCancelRequested = false; handler.MarkComplete(); yield break; }
             callback(1);
+            handler.MarkComplete();
         }
 
         /// <summary>
@@ -193,29 +187,28 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// <param name="easeFunc">Easing function type</param>
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving (progress, easeFunc, mode) each frame</param>
-        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
+        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback) =>
+            new EaseEnumerator(EaseEnumerator(duration, easeFunc, mode, callback));
+
+        private static IEnumerator EaseEnumerator(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
         {
+            var handler = EaseEnumerator.Current;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (s_cancelRequested)
+                if (handler.CancelRequested)
                 {
-                    s_cancelRequested = false;
+                    handler.CancelRequested = false;
                     break;
                 }
-                
                 callback(a, easeFunc, mode);
-
                 yield return null;
             }
-
-            if (s_forceCancelRequested)
-            {
-                s_forceCancelRequested = false;
-                yield break;
-            }
+            if (handler.ForceCancelRequested) { handler.ForceCancelRequested = false; handler.MarkComplete(); yield break; }
             callback(1, easeFunc, mode);
+            handler.MarkComplete();
         }
-        
+
         /// <summary>
         /// Animates with easing, automatically calculating eased value and providing all parameters.
         /// Most comprehensive version - gives access to raw progress, ease parameters shortcuts, and pre-calculated eased value.
@@ -224,32 +217,31 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// <param name="easeFunc">Easing function type</param>
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving (progress, easeFunc, mode, easedValue) each frame</param>
-        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
+        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback) =>
+            new EaseEnumerator(EaseEnumerator(duration, easeFunc, mode, callback));
+
+        private static IEnumerator EaseEnumerator(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
         {
+            var handler = EaseEnumerator.Current;
             float ease;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (s_cancelRequested)
+                if (handler.CancelRequested)
                 {
-                    s_cancelRequested = false;
+                    handler.CancelRequested = false;
                     break;
                 }
-                
                 ease = Get(a, easeFunc, mode);
                 callback(a, easeFunc, mode, ease);
-
                 yield return null;
             }
-
-            if (s_forceCancelRequested)
-            {
-                s_forceCancelRequested = false;
-                yield break;
-            }
+            if (handler.ForceCancelRequested) { handler.ForceCancelRequested = false; handler.MarkComplete(); yield break; }
             ease = Get(1, easeFunc, mode);
             callback(1, easeFunc, mode, ease);
+            handler.MarkComplete();
         }
-        
+
         /// <summary>
         /// Animates with easing, automatically calculating, and providing only the eased value to callback.
         /// Simplest eased animation - callback receives only the pre-calculated eased progress (0 to 1).
@@ -258,40 +250,52 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// <param name="easeFunc">Easing function type</param>
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving eased progress value (0 to 1) each frame</param>
-        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
+        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback) =>
+            new EaseEnumerator(EaseEnumerator(duration, easeFunc, mode, callback));
+
+        private static IEnumerator EaseEnumerator(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
         {
+            var handler = EaseEnumerator.Current;
             float ease;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (s_cancelRequested)
+                if (handler.CancelRequested)
                 {
-                    s_cancelRequested = false;
+                    handler.CancelRequested = false;
                     break;
                 }
-                
                 ease = Get(a, easeFunc, mode);
                 callback(ease);
-
                 yield return null;
             }
-
-            if (s_forceCancelRequested)
-            {
-                s_forceCancelRequested = false;
-                yield break;
-            }
+            if (handler.ForceCancelRequested) { handler.ForceCancelRequested = false; handler.MarkComplete(); yield break; }
             ease = Get(1, easeFunc, mode);
             callback(ease);
+            handler.MarkComplete();
         }
         
         // Task Async alternative
         // Note: This one tries to avoid Unity dependencies, so DeltaTime is not used
         // This may not play well with Unity threads so use this with caution.
         // It is recommended to replace DateTime with your own available clock implementations
-        
+
+        private static bool s_taskCancelRequested;
+        private static bool s_taskForceCancelRequested;
+
+        /// <summary>
+        /// Cancels all active Task-based Ease.Animate calls.
+        /// Non-force: snaps to callback(1). Force: aborts without callback(1).
+        /// </summary>
+        public static void SkipAsync(bool force = false)
+        {
+            s_taskCancelRequested = true;
+            if (force) s_taskForceCancelRequested = true;
+        }
+
         /// <summary>
         /// Animates a value from 0 to 1 over specified duration, invoking callback each frame with linear progress.
-        /// Supports cancellation via Ease.Skip
+        /// Supports cancellation via Ease.SkipAsync
         /// </summary>
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="callback">Action receiving linear progress (0 to 1) each frame</param>
@@ -303,9 +307,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             while (DateTime.Now < endTime)
             {
-                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                if (s_taskCancelRequested || cancellationToken.IsCancellationRequested)
                 {
-                    s_cancelRequested = false;
+                    s_taskCancelRequested = false;
                     return;
                 }
 
@@ -317,9 +321,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                 await Task.Yield();
             }
 
-            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            if (s_taskForceCancelRequested || cancellationToken.IsCancellationRequested)
             {
-                s_forceCancelRequested = false;
+                s_taskForceCancelRequested = false;
                 return;
             }
 
@@ -342,9 +346,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             while (DateTime.Now < endTime)
             {
-                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                if (s_taskCancelRequested || cancellationToken.IsCancellationRequested)
                 {
-                    s_cancelRequested = false;
+                    s_taskCancelRequested = false;
                     return;
                 }
 
@@ -357,9 +361,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                 await Task.Yield();
             }
 
-            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            if (s_taskForceCancelRequested || cancellationToken.IsCancellationRequested)
             {
-                s_forceCancelRequested = false;
+                s_taskForceCancelRequested = false;
                 return;
             }
 
@@ -383,9 +387,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             while (DateTime.Now < endTime)
             {
-                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                if (s_taskCancelRequested || cancellationToken.IsCancellationRequested)
                 {
-                    s_cancelRequested = false;
+                    s_taskCancelRequested = false;
                     return;
                 }
 
@@ -397,9 +401,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                 await Task.Yield();
             }
 
-            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            if (s_taskForceCancelRequested || cancellationToken.IsCancellationRequested)
             {
-                s_forceCancelRequested = false;
+                s_taskForceCancelRequested = false;
                 return;
             }
 
@@ -422,9 +426,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             while (DateTime.Now < endTime)
             {
-                if (s_cancelRequested || cancellationToken.IsCancellationRequested)
+                if (s_taskCancelRequested || cancellationToken.IsCancellationRequested)
                 {
-                    s_cancelRequested = false;
+                    s_taskCancelRequested = false;
                     return;
                 }
 
@@ -437,9 +441,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                 await Task.Yield();
             }
 
-            if (s_forceCancelRequested || cancellationToken.IsCancellationRequested)
+            if (s_taskForceCancelRequested || cancellationToken.IsCancellationRequested)
             {
-                s_forceCancelRequested = false;
+                s_taskForceCancelRequested = false;
                 return;
             }
 
@@ -838,7 +842,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public readonly Vector2 Point1;
         public readonly Vector2 Point2;
 
-        [SerializeField] private float[] _Samples;
+        private readonly float[] _Samples;
 
         public CubicBezierEaseDirective(Vector2 point1, Vector2 point2)
         {
@@ -871,9 +875,6 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             if (x == 0 || Ease.FastApproximately(x, 1)) return x;
 
-            Debug.Assert(_Samples != null, "CubicBezierEaseDirective: Samples array is null");
-            Debug.Assert(_Samples.Length > 1, "CubicBezierEaseDirective: Samples array is empty");
-            
             int nIndex = Array.FindIndex(_Samples, n => n > x);
             nIndex = Math.Max(nIndex, 1);
 
@@ -951,5 +952,79 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             return "CubicBézier";
         }
+    }
+
+    /// <summary>
+    /// Wraps an Ease.Animate coroutine, providing per-animation Skip control and completion tracking.
+    /// Compatible with all IEnumerator usage patterns:
+    ///   yield return Ease.Animate(...)        — non-breaking
+    ///   StartCoroutine(Ease.Animate(...))     — non-breaking
+    ///   var anim = Ease.Animate(...);
+    ///   StartCoroutine(anim); anim.Skip();   — new: individual skip
+    ///
+    /// Warning: if Unity's StopCoroutine is called externally, IsComplete will not update automatically.
+    /// Call anim.Complete() manually after StopCoroutine to keep state consistent.
+    /// </summary>
+    public class EaseEnumerator : IEnumerator
+    {
+        internal static readonly List<WeakReference<EaseEnumerator>> s_active = new();
+
+        // ThreadStatic so EaseEnumerator can retrieve its own handler during construction
+        [ThreadStatic]
+        internal static EaseEnumerator Current;
+
+        private readonly IEnumerator _inner;
+
+        internal bool CancelRequested;
+        internal bool ForceCancelRequested;
+
+        /// <summary>True once the animation has naturally completed or Complete() was called.</summary>
+        public bool IsComplete { get; private set; }
+
+        object IEnumerator.Current => _inner.Current;
+
+        internal EaseEnumerator(IEnumerator inner)
+        {
+            _inner = inner;
+            s_active.Add(new WeakReference<EaseEnumerator>(this));
+        }
+
+        /// <summary>
+        /// Snaps the animation to its end state (calls callback(1)).
+        /// Use Skip(force: true) to abort without calling callback(1).
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Thrown if the animation is already complete.</exception>
+        public void Skip(bool force = false)
+        {
+            if (IsComplete)
+                throw new InvalidOperationException("Cannot Skip an animation that has already completed. Check IsComplete before calling Skip.");
+
+            CancelRequested = true;
+            if (force) ForceCancelRequested = true;
+        }
+
+        /// <summary>
+        /// Marks the animation as complete and removes it from the active list.
+        /// Call this manually after StopCoroutine to keep IsComplete and SkipAll consistent.
+        /// </summary>
+        public void Complete() => MarkComplete();
+
+        internal void MarkComplete()
+        {
+            IsComplete = true;
+            s_active.RemoveAll(w => !w.TryGetTarget(out var t) || t == this);
+        }
+
+        public bool MoveNext()
+        {
+            // Set Current so EaseEnumerator can retrieve its handler via AnimCoroutineHandler.Current
+            Current = this;
+            bool hasNext = _inner.MoveNext();
+            Current = null;
+            if (!hasNext) MarkComplete();
+            return hasNext;
+        }
+
+        public void Reset() => _inner.Reset();
     }
 }
