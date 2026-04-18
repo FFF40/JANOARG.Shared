@@ -166,7 +166,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// </summary>
         public static void SkipAll(bool force = false)
         {
-            foreach (var weak in AnimCoroutineHandler.s_active)
+            foreach (var weak in EaseEnumerator.s_active)
                 if (weak.TryGetTarget(out var handler))
                     handler.Skip(force);
         }
@@ -199,24 +199,101 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         /// <summary>
         /// Animates a value from 0 to 1 over specified duration, invoking callback each frame with linear progress.
-        /// Supports individual cancellation via the returned handler, or Ease.SkipAll for all active animations.
+        /// Use <see cref="EnumAnimate(float, Action{float})"/> instead if you need Skip control or IsComplete tracking.
         /// </summary>
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="callback">Action receiving linear progress (0 to 1) each frame</param>
-        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static AnimCoroutineHandler Animate(float duration, Action<float> callback) =>
-            new AnimCoroutineHandler(AnimateInner(duration, callback));
-
-        private static IEnumerator AnimateInner(float duration, Action<float> callback)
+        public static IEnumerator Animate(float duration, Action<float> callback)
         {
-            var handler = AnimCoroutineHandler.Current;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (handler.CancelRequested)
-                {
-                    handler.CancelRequested = false;
-                    break;
-                }
+                callback(a);
+                yield return null;
+            }
+            callback(1);
+        }
+
+        /// <summary>
+        /// Animates with easing, with support for shortcuts to ease parameters for callback.
+        /// Use <see cref="EnumAnimate(float, EaseFunction, EaseMode, Action{float, EaseFunction, EaseMode})"/> instead if you need Skip control or IsComplete tracking.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving (progress, easeFunc, mode) each frame</param>
+        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
+        {
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                callback(a, easeFunc, mode);
+                yield return null;
+            }
+            callback(1, easeFunc, mode);
+        }
+
+        /// <summary>
+        /// Animates with easing, automatically calculating eased value and providing all parameters.
+        /// Most comprehensive version - gives access to raw progress, ease parameters shortcuts, and pre-calculated eased value.
+        /// Use <see cref="EnumAnimate(float, EaseFunction, EaseMode, Action{float, EaseFunction, EaseMode, float})"/> instead if you need Skip control or IsComplete tracking.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving (progress, easeFunc, mode, easedValue) each frame</param>
+        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
+        {
+            float ease;
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                ease = Get(a, easeFunc, mode);
+                callback(a, easeFunc, mode, ease);
+                yield return null;
+            }
+            ease = Get(1, easeFunc, mode);
+            callback(1, easeFunc, mode, ease);
+        }
+
+        /// <summary>
+        /// Animates with easing, automatically calculating, and providing only the eased value to callback.
+        /// Simplest eased animation - callback receives only the pre-calculated eased progress (0 to 1).
+        /// Use <see cref="EnumAnimate(float, EaseFunction, EaseMode, Action{float})"/> instead if you need Skip control or IsComplete tracking.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="easeFunc">Easing function type</param>
+        /// <param name="mode">Easing mode (In/Out/InOut)</param>
+        /// <param name="callback">Action receiving eased progress value (0 to 1) each frame</param>
+        public static IEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
+        {
+            float ease;
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                ease = Get(a, easeFunc, mode);
+                callback(ease);
+                yield return null;
+            }
+            ease = Get(1, easeFunc, mode);
+            callback(ease);
+        }
+
+        // EnumAnimate — opt-in EaseEnumerator variants with per-animation Skip control and IsComplete tracking.
+        // Use these when you need to Skip an individual animation or check completion state.
+        // Carries a small overhead per call vs plain Animate (extra allocation + MoveNext wrapper).
+
+        /// <summary>
+        /// Animate variant returning an <see cref="EaseEnumerator"/> for per-animation Skip control and IsComplete tracking.
+        /// </summary>
+        /// <param name="duration">Total animation time in seconds</param>
+        /// <param name="callback">Action receiving linear progress (0 to 1) each frame</param>
+        /// <returns>An EaseEnumerator that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator EnumAnimate(float duration, Action<float> callback) =>
+            new EaseEnumerator(EnumAnimateInner(duration, callback));
+
+        private static IEnumerator EnumAnimateInner(float duration, Action<float> callback)
+        {
+            var handler = EaseEnumerator.Current;
+            for (float a = 0; a < 1; a += Time.deltaTime / duration)
+            {
+                if (handler.CancelRequested) { handler.CancelRequested = false; break; }
                 callback(a);
                 yield return null;
             }
@@ -226,27 +303,22 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
 
         /// <summary>
-        /// Animates with easing, with support for shortcuts to ease parameters for callback.
-        /// Useful for creating multiple easings with similar parameters, with declarative syntax.
+        /// Animate variant returning an <see cref="EaseEnumerator"/> for per-animation Skip control and IsComplete tracking.
         /// </summary>
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="easeFunc">Easing function type</param>
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving (progress, easeFunc, mode) each frame</param>
-        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static AnimCoroutineHandler Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback) =>
-            new AnimCoroutineHandler(AnimateInner(duration, easeFunc, mode, callback));
+        /// <returns>An EaseEnumerator that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator EnumAnimate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback) =>
+            new EaseEnumerator(EnumAnimateInner(duration, easeFunc, mode, callback));
 
-        private static IEnumerator AnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
+        private static IEnumerator EnumAnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
         {
-            var handler = AnimCoroutineHandler.Current;
+            var handler = EaseEnumerator.Current;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (handler.CancelRequested)
-                {
-                    handler.CancelRequested = false;
-                    break;
-                }
+                if (handler.CancelRequested) { handler.CancelRequested = false; break; }
                 callback(a, easeFunc, mode);
                 yield return null;
             }
@@ -256,28 +328,23 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
 
         /// <summary>
-        /// Animates with easing, automatically calculating eased value and providing all parameters.
-        /// Most comprehensive version - gives access to raw progress, ease parameters shortcuts, and pre-calculated eased value.
+        /// Animate variant returning an <see cref="EaseEnumerator"/> for per-animation Skip control and IsComplete tracking.
         /// </summary>
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="easeFunc">Easing function type</param>
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving (progress, easeFunc, mode, easedValue) each frame</param>
-        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static AnimCoroutineHandler Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback) =>
-            new AnimCoroutineHandler(AnimateInner(duration, easeFunc, mode, callback));
+        /// <returns>An EaseEnumerator that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator EnumAnimate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback) =>
+            new EaseEnumerator(EnumAnimateInner(duration, easeFunc, mode, callback));
 
-        private static IEnumerator AnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
+        private static IEnumerator EnumAnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
         {
-            var handler = AnimCoroutineHandler.Current;
+            var handler = EaseEnumerator.Current;
             float ease;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (handler.CancelRequested)
-                {
-                    handler.CancelRequested = false;
-                    break;
-                }
+                if (handler.CancelRequested) { handler.CancelRequested = false; break; }
                 ease = Get(a, easeFunc, mode);
                 callback(a, easeFunc, mode, ease);
                 yield return null;
@@ -289,28 +356,23 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
 
         /// <summary>
-        /// Animates with easing, automatically calculating, and providing only the eased value to callback.
-        /// Simplest eased animation - callback receives only the pre-calculated eased progress (0 to 1).
+        /// Animate variant returning an <see cref="EaseEnumerator"/> for per-animation Skip control and IsComplete tracking.
         /// </summary>
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="easeFunc">Easing function type</param>
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving eased progress value (0 to 1) each frame</param>
-        /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static AnimCoroutineHandler Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback) =>
-            new AnimCoroutineHandler(AnimateInner(duration, easeFunc, mode, callback));
+        /// <returns>An EaseEnumerator that can be passed to StartCoroutine and used to Skip individually.</returns>
+        public static EaseEnumerator EnumAnimate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback) =>
+            new EaseEnumerator(EnumAnimateInner(duration, easeFunc, mode, callback));
 
-        private static IEnumerator AnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
+        private static IEnumerator EnumAnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
         {
-            var handler = AnimCoroutineHandler.Current;
+            var handler = EaseEnumerator.Current;
             float ease;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
-                if (handler.CancelRequested)
-                {
-                    handler.CancelRequested = false;
-                    break;
-                }
+                if (handler.CancelRequested) { handler.CancelRequested = false; break; }
                 ease = Get(a, easeFunc, mode);
                 callback(ease);
                 yield return null;
@@ -1011,13 +1073,13 @@ namespace JANOARG.Shared.Data.ChartInfo
     /// Warning: if Unity's StopCoroutine is called externally, IsComplete will not update automatically.
     /// Call anim.Complete() manually after StopCoroutine to keep state consistent.
     /// </summary>
-    public class AnimCoroutineHandler : IEnumerator
+    public class EaseEnumerator : IEnumerator
     {
-        internal static readonly List<WeakReference<AnimCoroutineHandler>> s_active = new();
+        internal static readonly List<WeakReference<EaseEnumerator>> s_active = new();
 
         // ThreadStatic so AnimateInner can retrieve its own handler during construction
         [ThreadStatic]
-        internal static AnimCoroutineHandler Current;
+        internal static EaseEnumerator Current;
 
         private readonly IEnumerator _inner;
 
@@ -1029,10 +1091,10 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         object IEnumerator.Current => _inner.Current;
 
-        internal AnimCoroutineHandler(IEnumerator inner)
+        internal EaseEnumerator(IEnumerator inner)
         {
             _inner = inner;
-            s_active.Add(new WeakReference<AnimCoroutineHandler>(this));
+            s_active.Add(new WeakReference<EaseEnumerator>(this));
         }
 
         /// <summary>
@@ -1063,7 +1125,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public bool MoveNext()
         {
-            // Set Current so AnimateInner can retrieve its handler via AnimCoroutineHandler.Current
+            // Set Current so AnimateInner can retrieve its handler via EaseEnumerator.Current
             Current = this;
             bool hasNext = _inner.MoveNext();
             Current = null;
