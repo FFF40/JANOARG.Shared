@@ -36,15 +36,15 @@ namespace JANOARG.Shared.Data.ChartInfo
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-            (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * to;
+            from + (to - from) * Ease.Get(interpolator, easeFunc, mode);
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-            Ease.Get(interpolator, easeFunc, mode) * from + (1 - Ease.Get(interpolator, easeFunc, mode)) * to;
+            to - (to - from) * Ease.Get(interpolator, easeFunc, mode);
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-            (1 - Ease.Get(interpolator, easeFunc, mode)) * from + Ease.Get(interpolator, easeFunc, mode) * (from + delta);
+            from + delta * Ease.Get(interpolator, easeFunc, mode);
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
