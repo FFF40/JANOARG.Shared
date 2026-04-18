@@ -516,7 +516,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             
             // Wrap angle to [-PI, PI]
-            x = (x + _PI) % (2 * _PI) - _PI;
+            // Note: C# % is remainder, not modulo — floor-based wrap handles negative x correctly
+            x -= (2 * _PI) * MathF.Floor((x + _PI) / (2 * _PI));
             
             const float B = 4f / _PI;
             const float C = -4f / (_PI * _PI);
@@ -561,11 +562,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         }
 
         // Fast power function for any base
-        public static float FastPow(float a, float b, bool forceCalc = false)
+        public static float FastPow(float a, float b)
         { 
-            // Testing
-            //return Mathf.Pow(a, b);
-            
             // Domain checks first
             Debug.Assert(a >= 0f, "FastPow(float, float): input must be non-negative.");
             Debug.Assert(!float.IsNaN(a) && !float.IsNaN(b));
@@ -585,9 +583,6 @@ namespace JANOARG.Shared.Data.ChartInfo
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FastSqrt(float x, bool precision = false)
         {
-            // Testing
-            //return Mathf.Sqrt(x);
-            
             Debug.Assert(x >= 0f, "FastSqrt(float): input must be non-negative.");
 
             if (x == 0f) return 0f;
@@ -605,6 +600,10 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (precision)
                 y = COEFFICIENT * (y + x / y);
 
+            // Note: this clamps output to [0, 1], making it incorrect for inputs > 1.
+            // This is intentional for easing contexts where values are always normalized,
+            // but use PseudoFastSqrt (FastPow(x, 0.5f)) instead if visual stability is
+            // a concern, as it is more consistent for Circle easing and similar curves.
             y = y > 1 ? 1 : y;
             y = y < 0 ? 0 : y;
             
@@ -646,7 +645,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             return diff is < _EPSILON and > -_EPSILON;
         }
         
-        public static readonly Ease[] srEases;
+        private static readonly Ease[] srEases;
 
         // We will reduce as much external calls as possible,
         // given this library is being called ~3000+ times per frame
@@ -865,8 +864,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         private void UpdateSamples()
         {
             float step = 1.0f / (_Samples.Length - 1);
-            for (var t = 0; t < _Samples.Length - 1; t++)
-                _Samples[t] = GetBezier(t * step, Point1.x, Point2.x);
+            for (var t = 0; t < _Samples.Length - 1; t++) _Samples[t] = GetBezier(t * step, Point1.x, Point2.x);
         }
 
         public float Get(float x)
@@ -912,7 +910,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float BinarySearchApprox(float x, float minBound, float maxBound)
         {
-            float t, xDiff, i = 0;
+            float t, xDiff;
+            int i = 0;
 
             do
             {
@@ -922,7 +921,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 if (xDiff < 0) minBound = t;
                 else maxBound = t;
             }
-            while (Mathf.Abs(xDiff) < _BINARY_SEARCH_PRECISION && i < _BINARY_SEARCH_MAX_ITERATIONS);
+            while (Mathf.Abs(xDiff) > _BINARY_SEARCH_PRECISION && i++ < _BINARY_SEARCH_MAX_ITERATIONS);
 
             return t;
         }
