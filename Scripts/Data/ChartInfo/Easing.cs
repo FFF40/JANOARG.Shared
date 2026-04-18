@@ -35,77 +35,123 @@ namespace JANOARG.Shared.Data.ChartInfo
     [Serializable]
     public static class EaseUtils
     {
+        /// <summary>Eases from <paramref name="from"/> to <paramref name="to"/>. At interpolator=0 returns from, at interpolator=1 returns to.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from + (to - from) * Ease.Get(interpolator, easeFunc, mode);
-        
+
+        /// <summary>Reverse of LerpTo — eases from <paramref name="to"/> back to <paramref name="from"/>. At interpolator=0 returns <paramref name="to"/>, at interpolator=1 returns <paramref name="from"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpTo(float from, float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             to - (to - from) * Ease.Get(interpolator, easeFunc, mode);
-        
+
+        /// <summary>Eases <paramref name="from"/> by <paramref name="delta"/>. Equivalent to LerpTo with an offset instead of an explicit target.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from + delta * Ease.Get(interpolator, easeFunc, mode);
-        
+
+        /// <summary>Reverse of LerpBy — eases from <paramref name="from"/> + <paramref name="delta"/> back to <paramref name="from"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpBy(float from, float delta, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from + delta * (1 - Ease.Get(interpolator, easeFunc, mode));
-        
+
+        /// <summary>Eases <paramref name="from"/> toward zero. At interpolator=0 returns <paramref name="from"/>, at interpolator=1 returns 0.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float ToZero(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from * (1 - Ease.Get(interpolator, easeFunc, mode));
-        
+
+        /// <summary>
+        /// Eases from zero toward <paramref name="to"/>. At interpolator=0 returns 0, at interpolator=1 returns <paramref name="to"/>.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FromZero(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             to * Ease.Get(interpolator, easeFunc, mode);
-        
+
+        /// <summary>
+        /// Returns <paramref name="to"/> divided by the eased interpolator.
+        /// Produces a value that starts very large and converges toward <paramref name="to"/> as the ease approaches 1.
+        /// Useful for overshoot or dramatic approach effects. Infinity at interpolator=0 (division by zero).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastIn(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             to / Ease.Get(interpolator, easeFunc, mode);
 
+        /// <summary>
+        /// Returns <paramref name="from"/> divided by (1 - eased interpolator).
+        /// Produces a value that starts at <paramref name="from"/> and diverges toward infinity as the ease approaches 1.
+        /// Useful for explosive exit or departure effects. Infinity at interpolator=1 (division by zero).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastOut(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
             from / (1 - Ease.Get(interpolator, easeFunc, mode));
-        
-        
-        // For predefined eases
-        
+
+
+        // Predefined ease overloads — pass a pre-calculated ease value (e.g. from Ease.Get or a cached result)
+        // instead of recomputing it each call. Useful when the same ease value drives multiple properties per frame.
+
+        /// <summary>
+        /// Eases from <paramref name="from"/> to <paramref name="to"/> using a pre-calculated <paramref name="ease"/> value.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpTo(float from, float to, float ease) =>
             (1 - ease) * from + ease * to;
-        
+
+        /// <summary>
+        /// Reverse of LerpTo — eases from <paramref name="to"/> back to <paramref name="from"/> using a pre-calculated <paramref name="ease"/> value.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpTo(float from, float to, float ease) =>
             ease * from + (1 - ease) * to;
 
+        /// <summary>
+        /// Eases from <paramref name="from"/> to <paramref name="from"/> + <paramref name="delta"/> using a pre-calculated <paramref name="ease"/> value.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float LerpBy(float from, float delta, float ease) =>
             (1 - ease) * from + ease * (from + delta);
-        
+
+        /// <summary>
+        /// Reverse of LerpBy using a pre-calculated <paramref name="ease"/> value.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float InverseLerpBy(float from, float delta, float ease) =>
             from + delta * (1 - ease);
-        
+
+        /// <summary>
+        /// Eases <paramref name="from"/> toward zero using a pre-calculated <paramref name="ease"/> value.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float ToZero(float from, float ease) =>
             from * (1 - ease);
-        
+
+        /// <summary>
+        /// Eases from zero toward <paramref name="to"/> using a pre-calculated <paramref name="ease"/> value.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float FromZero(float to, float ease) =>
             to * ease;
-        
+
+        /// <summary>
+        /// Returns <paramref name="to"/> when <paramref name="ease"/> reaches 1, otherwise returns <paramref name="from"/>. Hard cut with no interpolation.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Snap(float from, float to, float ease) =>
             (int)ease == 1 ? to : from;
-        
+
+        /// <summary>
+        /// BlastIn using a pre-calculated <paramref name="ease"/> value. Undefined at ease=0.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastIn(float to, float ease) =>
             to / ease;
-        
+
+        /// <summary>
+        /// BlastOut using a pre-calculated <paramref name="ease"/> value. Undefined at ease=1.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastOut(float from, float ease) =>
             from / (1 - ease);
-        
+
     }
 
     public class Ease
@@ -120,7 +166,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// </summary>
         public static void SkipAll(bool force = false)
         {
-            foreach (var weak in EaseEnumerator.s_active)
+            foreach (var weak in AnimCoroutineHandler.s_active)
                 if (weak.TryGetTarget(out var handler))
                     handler.Skip(force);
         }
@@ -158,12 +204,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// <param name="duration">Total animation time in seconds</param>
         /// <param name="callback">Action receiving linear progress (0 to 1) each frame</param>
         /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static EaseEnumerator Animate(float duration, Action<float> callback) =>
-            new EaseEnumerator(EaseEnumerator(duration, callback));
+        public static AnimCoroutineHandler Animate(float duration, Action<float> callback) =>
+            new AnimCoroutineHandler(AnimateInner(duration, callback));
 
-        private static IEnumerator EaseEnumerator(float duration, Action<float> callback)
+        private static IEnumerator AnimateInner(float duration, Action<float> callback)
         {
-            var handler = EaseEnumerator.Current;
+            var handler = AnimCoroutineHandler.Current;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
                 if (handler.CancelRequested)
@@ -188,12 +234,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving (progress, easeFunc, mode) each frame</param>
         /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static EaseEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback) =>
-            new EaseEnumerator(EaseEnumerator(duration, easeFunc, mode, callback));
+        public static AnimCoroutineHandler Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback) =>
+            new AnimCoroutineHandler(AnimateInner(duration, easeFunc, mode, callback));
 
-        private static IEnumerator EaseEnumerator(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
+        private static IEnumerator AnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode> callback)
         {
-            var handler = EaseEnumerator.Current;
+            var handler = AnimCoroutineHandler.Current;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
                 if (handler.CancelRequested)
@@ -218,12 +264,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving (progress, easeFunc, mode, easedValue) each frame</param>
         /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static EaseEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback) =>
-            new EaseEnumerator(EaseEnumerator(duration, easeFunc, mode, callback));
+        public static AnimCoroutineHandler Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback) =>
+            new AnimCoroutineHandler(AnimateInner(duration, easeFunc, mode, callback));
 
-        private static IEnumerator EaseEnumerator(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
+        private static IEnumerator AnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float, EaseFunction, EaseMode, float> callback)
         {
-            var handler = EaseEnumerator.Current;
+            var handler = AnimCoroutineHandler.Current;
             float ease;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
@@ -251,12 +297,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// <param name="mode">Easing mode (In/Out/InOut)</param>
         /// <param name="callback">Action receiving eased progress value (0 to 1) each frame</param>
         /// <returns>An AnimCoroutineHandler that can be passed to StartCoroutine and used to Skip individually.</returns>
-        public static EaseEnumerator Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback) =>
-            new EaseEnumerator(EaseEnumerator(duration, easeFunc, mode, callback));
+        public static AnimCoroutineHandler Animate(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback) =>
+            new AnimCoroutineHandler(AnimateInner(duration, easeFunc, mode, callback));
 
-        private static IEnumerator EaseEnumerator(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
+        private static IEnumerator AnimateInner(float duration, EaseFunction easeFunc, EaseMode mode, Action<float> callback)
         {
-            var handler = EaseEnumerator.Current;
+            var handler = AnimCoroutineHandler.Current;
             float ease;
             for (float a = 0; a < 1; a += Time.deltaTime / duration)
             {
@@ -965,13 +1011,13 @@ namespace JANOARG.Shared.Data.ChartInfo
     /// Warning: if Unity's StopCoroutine is called externally, IsComplete will not update automatically.
     /// Call anim.Complete() manually after StopCoroutine to keep state consistent.
     /// </summary>
-    public class EaseEnumerator : IEnumerator
+    public class AnimCoroutineHandler : IEnumerator
     {
-        internal static readonly List<WeakReference<EaseEnumerator>> s_active = new();
+        internal static readonly List<WeakReference<AnimCoroutineHandler>> s_active = new();
 
-        // ThreadStatic so EaseEnumerator can retrieve its own handler during construction
+        // ThreadStatic so AnimateInner can retrieve its own handler during construction
         [ThreadStatic]
-        internal static EaseEnumerator Current;
+        internal static AnimCoroutineHandler Current;
 
         private readonly IEnumerator _inner;
 
@@ -983,10 +1029,10 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         object IEnumerator.Current => _inner.Current;
 
-        internal EaseEnumerator(IEnumerator inner)
+        internal AnimCoroutineHandler(IEnumerator inner)
         {
             _inner = inner;
-            s_active.Add(new WeakReference<EaseEnumerator>(this));
+            s_active.Add(new WeakReference<AnimCoroutineHandler>(this));
         }
 
         /// <summary>
@@ -1017,7 +1063,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public bool MoveNext()
         {
-            // Set Current so EaseEnumerator can retrieve its handler via AnimCoroutineHandler.Current
+            // Set Current so AnimateInner can retrieve its handler via AnimCoroutineHandler.Current
             Current = this;
             bool hasNext = _inner.MoveNext();
             Current = null;
