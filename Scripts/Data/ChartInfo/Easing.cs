@@ -1119,7 +1119,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 return false;
 
             CancelRequested = true;
-            if (force) ForceCancelRequested = true;
+            ForceCancelRequested = force;
 
             return true;
         }
