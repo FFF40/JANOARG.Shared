@@ -388,6 +388,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         // This may not play well with Unity threads so use this with caution.
         // It is recommended to replace DateTime with your own available clock implementations
 
+        #region TASK BASED ANIMATOR
         private static bool s_taskCancelRequested;
         private static bool s_taskForceCancelRequested;
 
@@ -559,7 +560,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             callback(1, easeFunc, mode, finalEase);
         }
 
-        
+        #endregion
         
 
         public static IEnumerator AnimateText(TMP_Text text, float duration, float xOffset, Action<TMP_CharacterInfo, float> letterCallback)
@@ -1063,16 +1064,19 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     /// <summary>
-    /// Wraps an Ease.Animate coroutine, providing per-animation Skip control and completion tracking.
-    /// Compatible with all IEnumerator usage patterns:
-    ///   yield return Ease.Animate(...)        — non-breaking
-    ///   StartCoroutine(Ease.Animate(...))     — non-breaking
-    ///   var anim = Ease.Animate(...);
-    ///   StartCoroutine(anim); anim.Skip();   — new: individual skip
+    /// Wraps an Ease.Animate coroutine, providing per-animation Skip control and completion tracking. <br/>
+    /// Compatible with all IEnumerator usage patterns: <br/>
+    ///   yield return Ease.Animate(...)        — non-breaking <br/>
+    ///   StartCoroutine(Ease.Animate(...))     — non-breaking <br/>
+    ///   var anim = Ease.Animate(...); <br/>
+    ///   StartCoroutine(anim); anim.Skip();   — new: individual skip <br/>
     ///
-    /// Warning: if Unity's StopCoroutine is called externally, IsComplete will not update automatically.
-    /// Call anim.Complete() manually after StopCoroutine to keep state consistent.
     /// </summary>
+    ///
+    /// <remark>
+    /// If Unity's StopCoroutine is called externally, IsComplete will not update automatically. <br/>
+    /// Call anim.Complete() manually after StopCoroutine to keep state consistent.
+    /// </remark>
     public class EaseEnumerator : IEnumerator
     {
         internal static readonly List<WeakReference<EaseEnumerator>> s_active = new();
