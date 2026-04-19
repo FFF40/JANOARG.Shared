@@ -950,7 +950,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public readonly Vector2 Point1;
         public readonly Vector2 Point2;
 
-        private readonly float[] _Samples;
+        [SerializeField] private float[] _Samples;
 
         public CubicBezierEaseDirective(Vector2 point1, Vector2 point2)
         {
