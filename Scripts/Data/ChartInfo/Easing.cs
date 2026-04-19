@@ -1105,14 +1105,23 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// Snaps the animation to its end state (calls callback(1)).
         /// Use Skip(force: true) to abort without calling callback(1).
         /// </summary>
-        /// <exception cref="InvalidOperationException">Thrown if the animation is already complete.</exception>
-        public void Skip(bool force = false)
+        /// <returns>true if succeeded, false if fails where IsComplete is true, throws if type is null</returns>
+        /// <exception cref="NullReferenceException"> When target is null</exception>
+        public bool Skip(bool force = false)
         {
+            if (CancelRequested)
+            {
+                Debug.LogWarning("Duplicate call to EaseEnumerator.Skip(), ignoring. Refer to stack trace.");
+                return false;
+            }
+            
             if (IsComplete)
-                throw new InvalidOperationException("Cannot Skip an animation that has already completed. Check IsComplete before calling Skip.");
+                return false;
 
             CancelRequested = true;
             if (force) ForceCancelRequested = true;
+
+            return true;
         }
 
         /// <summary>
