@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Xml.Serialization;
+using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -74,6 +76,13 @@ namespace JANOARG.Shared.Data.ChartInfo
             Load();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void Log(string message)                    => Debug.Log($"[Storage] {message}");
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void LogWarning(string message)             => Debug.LogWarning($"[Storage] {message}");
+        [MethodImpl(MethodImplOptions.AggressiveInlining)] [AssertionMethod]
+        private void Assert(bool condition, string message) => Debug.Assert(condition, $"[Storage] {message}");
+
         public T Get<T>(string key, T fallback)
         {
             try 
@@ -82,10 +91,13 @@ namespace JANOARG.Shared.Data.ChartInfo
                 {
                     return (T)values[key];
                 }
-                else return fallback;
+                
+                LogWarning( $"Key not found: {key} ({typeof(T)}), reverting to fallback of {fallback}");
+                return fallback;
             }
-            catch (InvalidCastException)
+            catch (InvalidCastException e)
             {
+                LogWarning($"Key not found: {key} ({typeof(T)}) due to exception \"{e.Message}\", reverting to fallback of {fallback}");
                 return fallback;
             }
         }
@@ -98,16 +110,23 @@ namespace JANOARG.Shared.Data.ChartInfo
                     if (values[key] is object[]) return ((object[])values[key]).OfType<T>().ToArray();
                     return (T[])values[key];
                 }
-                else return fallback;
+                
+                LogWarning( $"Key not found: {key} ({typeof(T)}), reverting to fallback of {fallback}");
+                return fallback;
             }
-            catch (InvalidCastException)
+            catch (InvalidCastException e)
             {
+                LogWarning($"Key not found: {key} ({typeof(T)}) due to exception \"{e.Message}\", reverting to fallback of {fallback}");
                 return fallback;
             }
         }
 
         public void Set(string key, object value)
         {
+            if (values.ContainsKey(key))
+                Log($"Overwriting existing key {key} with value {value}");
+            else
+                Log($"Adding new key {key} as {value}");
             values[key] = value;
         }
 
@@ -118,16 +137,22 @@ namespace JANOARG.Shared.Data.ChartInfo
         public void Save()
         {
             TStore list = new TStore();
-            foreach (KeyValuePair<string, object> pair in values) if (pair.Value != null) list.Items.Add(pair);
+            foreach (KeyValuePair<string, object> pair in values)
+                if (pair.Value != null) 
+                    list.Items.Add(pair);
+                else
+                    LogWarning($"Tried to save null value for key {pair.Key}. Skipping.");
 
             XmlSerializer serializer = new XmlSerializer(typeof(TStore));
             FileStream fs;
 
             fs = new FileStream(SaveName + ".jas", FileMode.Create);
             serializer.Serialize(fs, list);
+            Log($"Saved to {SaveName}.jas");
             fs.Close();
             fs = new FileStream(SaveName + ".backup.jas", FileMode.Create);
             serializer.Serialize(fs, list);
+            Log($"Saved backup to {SaveName}.backup.jas");
             fs.Close();
 
             OnSave.Invoke();
@@ -141,9 +166,22 @@ namespace JANOARG.Shared.Data.ChartInfo
             FileStream fs = null;
             try 
             {
+                Log($"Loading {SaveName}.jas");
                 fs = new FileStream(SaveName + ".jas", FileMode.OpenOrCreate);
+                Assert(fs != null,  "FileStream should never be null after successful creation");
                 list = (TStore)serializer.Deserialize(fs);
+                Debug.LogAssertion($"Fetched {list.Items.Count} from {SaveName}.jas deserialisation. \n {ListDeserialised()}");
                 fs.Close();
+
+                string ListDeserialised()
+                {
+                    string str = "";
+                    foreach (var i in list.Items)
+                    {
+                        str += i.Key + " : " + i.Value + "\n";
+                    }
+                    return str;
+                }
             }
             catch (Exception e)
             {
