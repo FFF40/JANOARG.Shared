@@ -1077,10 +1077,12 @@ namespace JANOARG.Shared.Data.ChartInfo
     /// If Unity's StopCoroutine is called externally, IsComplete will not update automatically. <br/>
     /// Call anim.Complete() manually after StopCoroutine to keep state consistent.
     /// </remark>
-    public class EaseEnumerator : IEnumerator
+    public class EaseEnumerator : IEnumerator, IEnumerable
     {
         internal static readonly List<WeakReference<EaseEnumerator>> s_active = new();
 
+        public IEnumerator GetEnumerator() => this;
+        
         // ThreadStatic so AnimateInner can retrieve its own handler during construction
         [ThreadStatic]
         internal static EaseEnumerator Current;
