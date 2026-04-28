@@ -251,6 +251,14 @@ namespace JANOARG.Shared.Data.ChartInfo
                     CurrentValues[(int)timestampType.ID] = timestampType.StoryboardGetter(this);
             }
 
+            // Fast-path: nothing to animate, skip the entire timestamp loop.
+            // Most objects in a typical chart have an empty storyboard.
+            if (Storyboard.Timestamps.Count == 0)
+            {
+                CurrentTime = time;
+                return;
+            }
+
             // Loop through each timestamp type
             foreach (TimestampType timestampType in timestampTypes)
             {
