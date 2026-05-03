@@ -9,6 +9,7 @@ Shader "JANOARG/Styles/Default - Hit"
     {
         Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Fade" }
         Blend SrcAlpha OneMinusSrcAlpha
+        ZWrite Off
         LOD 100
 
         Pass
