@@ -74,7 +74,10 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastIn(float to, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-            to / Ease.Get(interpolator, easeFunc, mode);
+            Ease.Get(interpolator, easeFunc, mode) is var ease && to / ease > float.MaxValue
+                ? float.MaxValue
+                : to / ease;
+
 
         /// <summary>
         /// Returns <paramref name="from"/> divided by (1 - eased interpolator).
@@ -83,7 +86,9 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastOut(float from, float interpolator, EaseFunction easeFunc, EaseMode mode) =>
-            from / (1 - Ease.Get(interpolator, easeFunc, mode));
+            (1 - Ease.Get(interpolator, easeFunc, mode)) is var ease && from / ease > float.MaxValue
+                ? float.MaxValue
+                : from / ease;
 
 
         // Predefined ease overloads — pass a pre-calculated ease value (e.g. from Ease.Get or a cached result)
@@ -143,14 +148,18 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastIn(float to, float ease) =>
-            to / ease;
+            (to / ease) is var val && val > float.MaxValue ?
+                float.MaxValue :
+                val;
 
         /// <summary>
         /// BlastOut using a pre-calculated <paramref name="ease"/> value. Undefined at ease=1.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float BlastOut(float from, float ease) =>
-            from / (1 - ease);
+            (from / (1 - ease)) is var val && val > float.MaxValue ?
+                float.MaxValue :
+                val;
 
     }
 
