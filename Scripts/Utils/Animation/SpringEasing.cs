@@ -10,7 +10,7 @@ namespace JANOARG.Shared.Utils.Animation
     public static class SpringEase
     {
         /// <summary>
-        ///     Ease a value from two arbitrary values based on perspective parameters of the spring model.
+        ///     Ease a value from two arbitrary values based on perceptive parameters of the spring model.
         /// </summary>
         /// <param name="t">Current time, in seconds.</param>
         /// <param name="from">The starting value to animate from.</param>
@@ -20,7 +20,7 @@ namespace JANOARG.Shared.Utils.Animation
         ///    (-1,0) = over-damped, 0 = critically damped, (0,1) = under-damped
         /// </param>
         /// <param name="perceptiveDuration">
-        ///     Animation's perspective duration, in seconds.<br/>
+        ///     Animation's perceptive duration, in seconds.<br/>
         ///     The actual resting duration will likely be different from this value.
         /// </param>
         /// <param name="initialVelocity">Animation's initial velocity, in units / second.</param>
@@ -37,7 +37,7 @@ namespace JANOARG.Shared.Utils.Animation
         }
 
         /// <summary>
-        ///     Ease a value from 0 to 1 based on perspective parameters of the spring model.
+        ///     Ease a value from 0 to 1 based on perceptive parameters of the spring model.
         /// </summary>
         /// <param name="t">Current time, in seconds.</param>
         /// <param name="bounciness">
@@ -45,7 +45,7 @@ namespace JANOARG.Shared.Utils.Animation
         ///     (-1,0) = over-damped, 0 = critically damped, (0,1) = under-damped
         /// </param>
         /// <param name="perceptiveDuration">
-        ///     Animation's perspective duration, in seconds.<br/>
+        ///     Animation's perceptive duration, in seconds.<br/>
         ///     The actual resting duration will likely be different from this value.
         /// </param>
         /// <param name="initialVelocity">Animation's initial velocity, in units / second.</param>
