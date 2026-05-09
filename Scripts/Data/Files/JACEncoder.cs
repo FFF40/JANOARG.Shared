@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using JANOARG.Shared.Data.ChartInfo;
+using JANOARG.Shared.Utils.Animation;
 using UnityEngine;
 
 namespace JANOARG.Shared.Data.Files

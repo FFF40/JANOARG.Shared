@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using JANOARG.Shared.Utils.Animation;
 using JANOARG.Shared.Data.ChartInfo;
 using UnityEngine;
 
