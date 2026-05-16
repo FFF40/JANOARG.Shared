@@ -4,7 +4,7 @@ using System.Globalization;
 namespace JANOARG.Shared.Data.ChartInfo
 {
     [Serializable]
-    public struct BeatPosition : IComparable<BeatPosition>
+    public struct BeatPosition : IComparable<BeatPosition>, IEquatable<BeatPosition>
     {
         public int Number;
         public int Numerator;
@@ -264,5 +264,20 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public static BeatPosition Max(BeatPosition a, BeatPosition b) => 
             a > b ? a : b;
+
+        public bool Equals(BeatPosition other)
+        {
+            return Number == other.Number && Numerator == other.Numerator && Denominator == other.Denominator;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is BeatPosition other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Number, Numerator, Denominator);
+        }
     }
 }
