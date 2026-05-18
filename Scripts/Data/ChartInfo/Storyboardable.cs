@@ -245,7 +245,6 @@ namespace JANOARG.Shared.Data.ChartInfo
             // Initialize current value of each timestamp type if they don't exist
             if (CurrentValues == null) 
             {
-                // Initialize array with size equal to number of enum values
                 CurrentValues = new float[srTimestampIDValues.Length];
             
                 foreach (TimestampType timestampType in timestampTypes)
@@ -253,61 +252,59 @@ namespace JANOARG.Shared.Data.ChartInfo
             }
 
             // Fast-path: nothing to animate, skip the entire timestamp loop.
-            // Most objects in a typical chart have an empty storyboard.
             if (Storyboard.Timestamps.Count == 0)
             {
                 CurrentTime = time;
                 return;
             }
 
-            // Loop through each timestamp type
             foreach (TimestampType timestampType in timestampTypes)
             {
-                // Skip if there isn't any timestamp of the given type, otherwise assign to value
                 float value = CurrentValues[(int)timestampType.ID];
 
-                // Navigate forward
-                while (true) 
+                // Use FromType for sorted, cached iteration — same source as GetStoryboardableObject.
+                Timestamp[] timestamps = Storyboard.FromType(timestampType.ID);
+
+                foreach (Timestamp timestamp in timestamps)
                 {
-                    // Get the next timestamp in the list
-                    Timestamp timestamp = null;
-                    
-                    foreach (Timestamp storyboardTimestamp in Storyboard.Timestamps)
-                    {
-                        if (timestampType.ID == storyboardTimestamp.ID)
-                        {
-                            timestamp = storyboardTimestamp;
-                            break;
-                        }
-                    }
-                
-                    // Skip if there's no timestamp or it's not yet the start of the next timestamp
-                    if (timestamp == null || (time < timestamp.Offset && CurrentTime < timestamp.Offset))
+                    if (time < timestamp.Offset)
                         break;
 
-                    // If the timestamp is in progress
                     if (time < timestamp.Offset + timestamp.Duration)
                     {
-                        // NaN means lerp from the previous value
+                        // In-progress: never delete — time may revisit this range on scrub.
                         if (!float.IsNaN(timestamp.From))
                             CurrentValues[(int)timestampType.ID] = value = timestamp.From;
-                    
-                        // Get the current value
+
                         value = Mathf.LerpUnclamped(value, timestamp.Target, timestamp.Easing.Get((time - timestamp.Offset) / timestamp.Duration));
-                    
                         break;
                     }
                     else
                     {
-                        // Set value to destination and pop the timestamp off the list
+                        // Completed: safe to bake into CurrentValues.
+                        // Remove directly from Timestamps list to avoid invalidating _TypeCache
+                        // on every deletion — we'll do one bulk InvalidateCache after the loop.
                         CurrentValues[(int)timestampType.ID] = value = timestamp.Target;
                         Storyboard.Timestamps.Remove(timestamp);
                     }
                 }
+
                 timestampType.StoryboardSetter(this, value);
             }
 
+            // Single cache invalidation after all removals, rather than one per removal.
+            Storyboard.InvalidateCache();
+
             CurrentTime = time;
+        }
+
+        /// <summary>
+        /// Resets Advance state so the next call reinitializes from base object values.
+        /// Call on retry, loop, or any non-forward time jump.
+        /// </summary>
+        public void Reset()
+        {
+            CurrentValues = null;
         }
     }
 
@@ -315,73 +312,70 @@ namespace JANOARG.Shared.Data.ChartInfo
     {
         public bool IsDirty;
 
-        // Using dictionaries for faster lookup on higher call volumes
-        private Dictionary<TimestampIDs, Queue<Timestamp>> _TimestampsByID;
-
-        // Initialize on storyboard setup
-        private void InitializeTimestampGroups()
-        {
-            _TimestampsByID = new Dictionary<TimestampIDs, Queue<Timestamp>>();
-            
-            // Group timestamps by ID and sort by offset
-            var grouped = Storyboard.Timestamps
-                .GroupBy(t => t.ID)
-                .ToDictionary(g => g.Key, g => new Queue<Timestamp>(g.OrderBy(t => t.Offset)));
-            
-            _TimestampsByID = grouped;
-        }
+        // Per-type index into FromType's sorted array — replaces the Queue.
+        // Non-destructive: we advance the index forward but never remove from the storyboard.
+        // Completed timestamps are baked into CurrentValues; the index just tracks how far we've gone.
+        private Dictionary<TimestampIDs, int> _TimestampIndex;
 
         public override void Advance(float time)
         {
             if (CurrentValues == null) 
             {
                 CurrentValues = new float[srTimestampIDValues.Length];
-                InitializeTimestampGroups();
-            
+                _TimestampIndex = new Dictionary<TimestampIDs, int>();
+
                 foreach (TimestampType timestampType in timestampTypes)
                     CurrentValues[(int)timestampType.ID] = timestampType.StoryboardGetter(this);
             }
             
-            foreach(TimestampType timestampType in timestampTypes)
+            foreach (TimestampType timestampType in timestampTypes)
             {
                 float value = CurrentValues[(int)timestampType.ID];
-                
-                if (!_TimestampsByID.TryGetValue(timestampType.ID, out Queue<Timestamp> timestamps))
-                    continue;
-                    
-                while (timestamps.Count > 0) 
-                {
-                    Timestamp timestamp = timestamps.Peek();
 
-                    // If there's no timestamp or it's not yet the start of the next timestamp
-                    if (time < timestamp.Offset && CurrentTime < timestamp.Offset) 
+                // FromType returns a sorted, cached array — same source as GetStoryboardableObject.
+                Timestamp[] timestamps = Storyboard.FromType(timestampType.ID);
+
+                if (!_TimestampIndex.TryGetValue(timestampType.ID, out int index))
+                    index = 0;
+
+                while (index < timestamps.Length)
+                {
+                    Timestamp timestamp = timestamps[index];
+
+                    if (time < timestamp.Offset)
                         break;
-                    
-                    // Otherwise
+
                     if (time < timestamp.Offset + timestamp.Duration)
                     {
-                        // Lerp from previous value if it's not NaN
-                        if (!float.IsNaN(timestamp.From)) 
+                        // In-progress: don't advance index — time may re-enter this range.
+                        if (!float.IsNaN(timestamp.From))
                             CurrentValues[(int)timestampType.ID] = value = timestamp.From;
-                        
-                        // Lerp to target value
+
                         value = Mathf.LerpUnclamped(value, timestamp.Target, timestamp.Easing.Get((time - timestamp.Offset) / timestamp.Duration));
                         IsDirty = true;
                         break;
                     }
                     else
                     {
-                        // Set value to target and pop the timestamp off the queue
-                        timestamps.Dequeue(); // Much faster than List.Remove()
+                        // Completed: bake into CurrentValues and advance index.
                         CurrentValues[(int)timestampType.ID] = value = timestamp.Target;
                         IsDirty = true;
+                        index++;
                     }
                 }
+
+                _TimestampIndex[timestampType.ID] = index;
                 timestampType.StoryboardSetter(this, value);
             }
+
             CurrentTime = time;
         }
-        
-        
+
+        public new void Reset()
+        {
+            base.Reset();
+            _TimestampIndex = null;
+            IsDirty = true;
+        }
     }
 }
