@@ -448,7 +448,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class LaneGroup : Storyboardable, IDeepClonable<LaneGroup>
+    public class LaneGroup : DirtyTrackedStoryboardable, IDeepClonable<LaneGroup>
     {
         public string  Name;
         public Vector3 Position;

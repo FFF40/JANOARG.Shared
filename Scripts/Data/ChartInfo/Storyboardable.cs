@@ -335,9 +335,16 @@ namespace JANOARG.Shared.Data.ChartInfo
         // Completed timestamps are baked into CurrentValues; the index just tracks how far we've gone.
         private Dictionary<TimestampIDs, int> _TimestampIndex;
 
+        // Sentinel index meaning "every timestamp of this type is already baked into
+        // CurrentValues, forward time can never change it again" — since time only moves
+        // forward within a single Advance() sequence (Reset() is required for scrubbing
+        // backward), once a type reaches this state we can skip FromType()/the scan loop
+        // for it on every subsequent call instead of re-checking it every frame forever.
+        private const int ExhaustedIndex = int.MaxValue;
+
         public override void Advance(float time)
         {
-            if (CurrentValues == null) 
+            if (CurrentValues == null)
             {
                 CurrentValues = new float[srTimestampIDValues.Length];
                 _TimestampIndex = new Dictionary<TimestampIDs, int>(TimestampIDsComparer.Instance);
@@ -345,44 +352,48 @@ namespace JANOARG.Shared.Data.ChartInfo
                 foreach (TimestampType timestampType in timestampTypes)
                     CurrentValues[(int)timestampType.ID] = timestampType.StoryboardGetter(this);
             }
-            
+
             foreach (TimestampType timestampType in timestampTypes)
             {
                 float value = CurrentValues[(int)timestampType.ID];
 
-                // FromType returns a sorted, cached array — same source as GetStoryboardableObject.
-                Timestamp[] timestamps = Storyboard.FromType(timestampType.ID);
-
                 if (!_TimestampIndex.TryGetValue(timestampType.ID, out int index))
                     index = 0;
 
-                while (index < timestamps.Length)
+                if (index != ExhaustedIndex)
                 {
-                    Timestamp timestamp = timestamps[index];
+                    // FromType returns a sorted, cached array — same source as GetStoryboardableObject.
+                    Timestamp[] timestamps = Storyboard.FromType(timestampType.ID);
 
-                    if (time < timestamp.Offset)
-                        break;
-
-                    if (time < timestamp.Offset + timestamp.Duration)
+                    while (index < timestamps.Length)
                     {
-                        // In-progress: don't advance index — time may re-enter this range.
-                        if (!float.IsNaN(timestamp.From))
-                            CurrentValues[(int)timestampType.ID] = value = timestamp.From;
+                        Timestamp timestamp = timestamps[index];
 
-                        value = Mathf.LerpUnclamped(value, timestamp.Target, timestamp.Easing.Get((time - timestamp.Offset) / timestamp.Duration));
-                        IsDirty = true;
-                        break;
+                        if (time < timestamp.Offset)
+                            break;
+
+                        if (time < timestamp.Offset + timestamp.Duration)
+                        {
+                            // In-progress: don't advance index — time may re-enter this range.
+                            if (!float.IsNaN(timestamp.From))
+                                CurrentValues[(int)timestampType.ID] = value = timestamp.From;
+
+                            value = Mathf.LerpUnclamped(value, timestamp.Target, timestamp.Easing.Get((time - timestamp.Offset) / timestamp.Duration));
+                            IsDirty = true;
+                            break;
+                        }
+                        else
+                        {
+                            // Completed: bake into CurrentValues and advance index.
+                            CurrentValues[(int)timestampType.ID] = value = timestamp.Target;
+                            IsDirty = true;
+                            index++;
+                        }
                     }
-                    else
-                    {
-                        // Completed: bake into CurrentValues and advance index.
-                        CurrentValues[(int)timestampType.ID] = value = timestamp.Target;
-                        IsDirty = true;
-                        index++;
-                    }
+
+                    _TimestampIndex[timestampType.ID] = index >= timestamps.Length ? ExhaustedIndex : index;
                 }
 
-                _TimestampIndex[timestampType.ID] = index;
                 timestampType.StoryboardSetter(this, value);
             }
 
