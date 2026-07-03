@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.Serialization;
 using JANOARG.Shared.Utils.Animation;
@@ -10,6 +9,17 @@ using JANOARG.Shared.Utils.Animation;
 
 namespace JANOARG.Shared.Data.ChartInfo
 {
+    // Dictionary<TimestampIDs, T> boxes the enum key on every Equals/GetHashCode call
+    // (TryGetValue, indexer) unless given an explicit comparer — this one compares/hashes
+    // via the underlying int, avoiding that per-call heap allocation entirely.
+    internal sealed class TimestampIDsComparer : IEqualityComparer<TimestampIDs>
+    {
+        public static readonly TimestampIDsComparer Instance = new();
+
+        public bool Equals(TimestampIDs x, TimestampIDs y) => (int)x == (int)y;
+        public int GetHashCode(TimestampIDs obj) => (int)obj;
+    }
+
     [Serializable]
     public class Timestamp : IDeepClonable<Timestamp>
     {
@@ -103,7 +113,15 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             if (!_TypeCache.TryGetValue((int)type, out Timestamp[] array))
             {
-                array = Timestamps.Where(x => x.ID == type).ToArray();
+                // Manual loop instead of Timestamps.Where(x => x.ID == type) — the lambda's
+                // closure was being allocated on every call (cache hit or miss) rather than
+                // only on the actual cache-miss path, since the compiler hoists closure
+                // construction to the top of the method regardless of which branch runs.
+                var list = new List<Timestamp>();
+                foreach (Timestamp t in Timestamps)
+                    if (t.ID == type)
+                        list.Add(t);
+                array = list.ToArray();
                 _TypeCache[(int)type] = array;
             }
             return array;
@@ -322,7 +340,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (CurrentValues == null) 
             {
                 CurrentValues = new float[srTimestampIDValues.Length];
-                _TimestampIndex = new Dictionary<TimestampIDs, int>();
+                _TimestampIndex = new Dictionary<TimestampIDs, int>(TimestampIDsComparer.Instance);
 
                 foreach (TimestampType timestampType in timestampTypes)
                     CurrentValues[(int)timestampType.ID] = timestampType.StoryboardGetter(this);
