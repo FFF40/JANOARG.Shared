@@ -131,7 +131,8 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 Storyboard = Storyboard.SelfReference(),
                 CameraPivot = new Vector3(CameraPivot.x, CameraPivot.y, CameraPivot.z),
-                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z)
+                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z),
+                PivotDistance = PivotDistance
             };
 
             return clone;
