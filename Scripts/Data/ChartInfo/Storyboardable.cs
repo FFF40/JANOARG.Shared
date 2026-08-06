@@ -111,19 +111,28 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public Timestamp[] FromType(TimestampIDs type)
         {
-            if (!_TypeCache.TryGetValue((int)type, out Timestamp[] array))
-            {
-                // Manual loop instead of Timestamps.Where(x => x.ID == type) — the lambda's
-                // closure was being allocated on every call (cache hit or miss) rather than
-                // only on the actual cache-miss path, since the compiler hoists closure
-                // construction to the top of the method regardless of which branch runs.
-                var list = new List<Timestamp>();
-                foreach (Timestamp t in Timestamps)
-                    if (t.ID == type)
-                        list.Add(t);
-                array = list.ToArray();
-                _TypeCache[(int)type] = array;
-            }
+            if (_TypeCache.TryGetValue((int)type, out Timestamp[] array))
+                return array;
+
+            // Deliberately loops rather than using Where(x => x.ID == type): capturing the
+            // parameter puts a display class allocation at method entry, ahead of the cache
+            // check above, so every call pays it whether or not it reaches this point.
+            var count = 0;
+
+            foreach (Timestamp timestamp in Timestamps)
+                if (timestamp.ID == type)
+                    count++;
+
+            array = new Timestamp[count];
+
+            var index = 0;
+
+            foreach (Timestamp timestamp in Timestamps)
+                if (timestamp.ID == type)
+                    array[index++] = timestamp;
+
+            _TypeCache[(int)type] = array;
+
             return array;
         }
     
