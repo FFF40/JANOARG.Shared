@@ -587,19 +587,44 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (float.IsNaN(CurrentDistance) && Steps.Count > 0) 
                 CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
 
-            for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
-
-            CurrentMesh.Clear();
-            CurrentMesh.SetVertices(verts, 0, vertCount);
-            CurrentMesh.SetUVs(0, uvs, 0, vertCount);
-
-            if (stepCount != _LastStepCount)
+            // Fewer than two steps produces no triangles, so the mesh draws nothing. Rewriting
+            // it anyway recreates its GPU buffers every frame, and that recreation is what
+            // stalls the main thread during render queue extraction — a lane sitting inside
+            // its cue window but not yet visible was costing more than a lane being drawn.
+            if (stepCount < 2)
             {
-                _Tris = MakeTriangles(stepCount, _Tris);
-                _LastStepCount = stepCount;
-            }
+                if (stepCount != _LastStepCount)
+                {
+                    CurrentMesh.Clear();
 
-            CurrentMesh.SetTriangles(_Tris, 0);
+                    _Tris = Array.Empty<int>();
+                    _LastStepCount = stepCount;
+                }
+            }
+            else
+            {
+                for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
+
+                CurrentMesh.Clear();
+                CurrentMesh.SetVertices(verts, 0, vertCount);
+                CurrentMesh.SetUVs(0, uvs, 0, vertCount);
+
+                if (stepCount != _LastStepCount)
+                {
+                    _Tris = MakeTriangles(stepCount, _Tris);
+                    _LastStepCount = stepCount;
+
+                    #if UNITY_EDITOR
+                    // Named so the profiler's mesh rows are identifiable instead of <No Name>.
+                    // Only on rebuild, so the string never lands in the per-frame path.
+                    CurrentMesh.name = string.IsNullOrEmpty(Current.Name)
+                        ? $"Lane @{(Steps.Count > 0 ? Steps[0].Offset : 0):0.###}s ({vertCount}v)"
+                        : $"Lane {Current.Name} ({vertCount}v)";
+                    #endif
+                }
+
+                CurrentMesh.SetTriangles(_Tris, 0);
+            }
 
             main.ActiveLaneCount++;
             main.ActiveLaneVerts += vertCount;
@@ -993,7 +1018,14 @@ namespace JANOARG.Shared.Data.ChartInfo
             // Generate hold mesh only if needed
             if (isInRange && isHoldNote)
             {
-                if (!_HoldMeshInstance) _HoldMeshInstance = new Mesh();
+                if (!_HoldMeshInstance)
+                {
+                    _HoldMeshInstance = new Mesh();
+
+                    #if UNITY_EDITOR
+                    _HoldMeshInstance.name = $"Hold @{TimeStart:0.###}s";
+                    #endif
+                }
 
                 HoldMesh = lane.GetPartOfLane(
                     Mathf.Max(TimeStart, time), TimeEnd, dataPosition, current.Length, _HoldMeshInstance
