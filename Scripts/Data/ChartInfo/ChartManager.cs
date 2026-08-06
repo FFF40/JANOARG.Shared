@@ -575,13 +575,11 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             if (stepCount != _LastStepCount)
             {
-                RemakeMesh(CurrentMesh, stepCount);
+                _Tris = MakeTriangles(stepCount, _Tris);
                 _LastStepCount = stepCount;
             }
-            else
-            {
-                CurrentMesh.SetTriangles(_Tris, 0);
-            }
+
+            CurrentMesh.SetTriangles(_Tris, 0);
 
             main.ActiveLaneCount++;
             main.ActiveLaneVerts += vertCount;
@@ -836,12 +834,18 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public void RemakeMesh(Mesh mesh, int stepCount)
         {
-            int triCount = Mathf.Max((stepCount - 1) * 6, 0);
+            mesh.SetTriangles(MakeTriangles(stepCount, null), 0);
+        }
 
-            // Exact-size, not high-water: SetTriangles takes the whole array, so a longer
-            // buffer would submit indices past the end of this frame's vertices.
-            int[] tris = _Tris.Length == triCount ? _Tris : new int[triCount];
-            _Tris = tris;
+        /// <summary>
+        /// Fills and returns <paramref name="buffer"/> when it is exactly the right length,
+        /// otherwise a new array. Exact length rather than high-water: SetTriangles consumes
+        /// the whole array, so a longer one would index past the vertices uploaded with it.
+        /// </summary>
+        static int[] MakeTriangles(int stepCount, int[] buffer)
+        {
+            int triCount = Mathf.Max((stepCount - 1) * 6, 0);
+            int[] tris = buffer != null && buffer.Length == triCount ? buffer : new int[triCount];
 
             for (var a = 0; a < stepCount - 1; a++)
             {
@@ -854,7 +858,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 tris[a * 6 + 5] = a * 2 + 3;
             }
 
-            mesh.SetTriangles(tris, 0);
+            return tris;
         }
     }
 
