@@ -12,7 +12,6 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public Dictionary<string, LaneGroupManager> Groups         = new();
         public List<LaneManager>                    Lanes          = new();
-        public HitMeshManager                       HitMeshManager = new();
         public PalleteManager                       PalleteManager = new();
         public CameraController                     Camera;
 
@@ -118,16 +117,12 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 Lanes.RemoveAt(CurrentChart.Lanes.Count);
             }
-
-            HitMeshManager.Cleanup();
         }
 
         public void Dispose()
         {
             foreach (LaneManager lane in Lanes)
                 lane.Dispose();
-
-            HitMeshManager.Dispose();
         }
     }
 
@@ -846,157 +841,6 @@ namespace JANOARG.Shared.Data.ChartInfo
         public float Distance;
     }
 
-
-    public class HitMeshManager
-    {
-        public Dictionary<float, Mesh> NormalMeshes     = new();
-        public Dictionary<float, int>  NormalMeshCounts = new();
-        public Dictionary<float, Mesh> CatchMeshes      = new();
-        public Dictionary<float, int>  CatchMeshCounts  = new();
-
-        public float Resolution = .001f;
-
-        public void Cleanup()
-        {
-            var list = new List<float>(NormalMeshes.Keys);
-
-            foreach (float key in list)
-                if (!NormalMeshCounts.ContainsKey(key))
-                {
-                    Object.DestroyImmediate(NormalMeshes[key]);
-                    NormalMeshes.Remove(key);
-                }
-
-            list = new List<float>(CatchMeshes.Keys);
-
-            foreach (float key in list)
-                if (!CatchMeshCounts.ContainsKey(key))
-                {
-                    Object.DestroyImmediate(CatchMeshes[key]);
-                    CatchMeshes.Remove(key);
-                }
-
-            NormalMeshCounts.Clear();
-            CatchMeshCounts.Clear();
-        }
-
-        public void Dispose()
-        {
-            foreach (float key in NormalMeshes.Keys) Object.DestroyImmediate(NormalMeshes[key]);
-
-            foreach (float key in CatchMeshes.Keys) Object.DestroyImmediate(CatchMeshes[key]);
-        }
-
-        public Mesh GetMesh(HitObject.HitType type, float size)
-        {
-            size = Mathf.Floor(size / Resolution) * Resolution;
-
-            Dictionary<float, Mesh> meshes = type == HitObject.HitType.Catch ? CatchMeshes : NormalMeshes;
-            Dictionary<float, int> counts = type == HitObject.HitType.Catch ? CatchMeshCounts : NormalMeshCounts;
-
-            if (!meshes.ContainsKey(size)) meshes[size] = MakeMesh(type, size);
-            if (!counts.ContainsKey(size)) counts[size] = 0;
-            counts[size]++;
-
-            return meshes[size];
-        }
-
-        public Mesh MakeMesh(HitObject.HitType type, float size)
-        {
-            Vector3 startPos = Vector3.left * size / 2;
-            Vector3 endPos = Vector3.right * size / 2;
-
-            var mesh = new Mesh();
-            var vertices = new List<Vector3>();
-            var uvs = new List<Vector2>();
-            var tris = new List<int>();
-
-            void AddStep(Vector3 start, Vector3 end, bool addTris = true)
-            {
-                vertices.Add(start);
-                vertices.Add(end);
-                vertices.Add(start);
-                vertices.Add(end);
-
-                uvs.Add(Vector2.zero);
-                uvs.Add(Vector2.zero);
-                uvs.Add(Vector2.zero);
-                uvs.Add(Vector2.zero);
-
-                if (addTris && vertices.Count >= 8)
-                {
-                    tris.Add(vertices.Count - 8);
-                    tris.Add(vertices.Count - 3);
-                    tris.Add(vertices.Count - 7);
-
-                    tris.Add(vertices.Count - 3);
-                    tris.Add(vertices.Count - 8);
-                    tris.Add(vertices.Count - 4);
-                }
-            }
-
-            if (type == HitObject.HitType.Normal)
-            {
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)startPos + Vector3.right * .2f + ofs, (Vector3)endPos - Vector3.right * .2f + ofs);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)startPos + ofs, (Vector3)startPos + Vector3.right * .1f + ofs, ang != 45);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)endPos - Vector3.right * .1f + ofs, (Vector3)endPos + ofs, ang != 45);
-                }
-            }
-            else if (type == HitObject.HitType.Catch)
-            {
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .1f;
-
-                    AddStep((Vector3)startPos + Vector3.right * .1f + ofs, (Vector3)endPos - Vector3.right * .1f + ofs);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)startPos + ofs, (Vector3)startPos + Vector3.right * .1f + ofs, ang != 45);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)endPos - Vector3.right * .1f + ofs, (Vector3)endPos + ofs, ang != 45);
-                }
-            }
-
-            mesh.Clear();
-            mesh.vertices = vertices.ToArray();
-            mesh.uv = uvs.ToArray();
-            mesh.triangles = tris.ToArray();
-            mesh.RecalculateNormals();
-
-            return mesh;
-        }
-    }
 
     public class HitObjectManager
     {
