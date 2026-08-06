@@ -36,7 +36,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             Update(time, pos);
         }
 
-        public void Update(float time, float pos)
+        /// <param name="activeMask">
+        /// Optional per-lane flags: false skips that lane's update entirely. Passing null
+        /// updates every lane, which is the original behaviour.
+        /// </param>
+        public void Update(float time, float pos, IReadOnlyList<bool> activeMask = null)
         {
             PalleteManager.Update(CurrentChart.Palette, pos);
             Camera = (CameraController)CurrentChart.Camera.GetStoryboardableObject(pos);
@@ -81,13 +85,31 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < CurrentChart.Lanes.Count; a++)
             {
+                // Out-of-range is treated as active so a stale mask can never blank the view.
+                bool active = activeMask == null || a >= activeMask.Count || activeMask[a];
+
+                if (Lanes.Count <= a) Lanes.Add(new LaneManager());
+
+                LaneManager manager = Lanes[a];
+
+                if (!active)
+                {
+                    // Its cached step distances and mesh go stale while skipped, so require a
+                    // rebuild rather than a diff when it comes back.
+                    if (manager.IsActive) manager.NeedsFullRebuild = true;
+
+                    manager.IsActive = false;
+                    continue;
+                }
+
                 var original = CurrentChart.Lanes[a];
+
+                // Deliberately inside the active branch: GetStoryboardableObject evaluates the
+                // whole storyboard, so skipping it is a real part of the saving.
                 var current = (Lane)original.GetStoryboardableObject(pos);
 
-                if (Lanes.Count <= a)
-                    Lanes.Add(new LaneManager(original, current, time, pos, this));
-                else
-                    Lanes[a].Update(original, current, time, pos, this);
+                manager.IsActive = true;
+                manager.Update(original, current, time, pos, this);
             }
 
             while (Lanes.Count > CurrentChart.Lanes.Count)
@@ -352,6 +374,18 @@ namespace JANOARG.Shared.Data.ChartInfo
         // triangles without reading Mesh.triangles back (which allocates a fresh copy).
         private int[] _Tris = Array.Empty<int>();
 
+        /// <summary>True when this lane was updated on the last pass; false when culled.</summary>
+        public bool IsActive = true;
+
+        /// <summary>
+        /// Set when the lane is skipped, so the next update rebuilds distances and mesh from
+        /// scratch instead of diffing against state that stopped tracking time.
+        /// </summary>
+        public bool NeedsFullRebuild;
+
+        /// <summary>Creates an un-updated lane, for a slot that starts out culled.</summary>
+        public LaneManager() { }
+
         public LaneManager(Lane original, Lane current, float time, float pos, ChartManager main)
         {
             Update(original, current, time, pos, main);
@@ -367,6 +401,15 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             var stepCount = 0;
             bool force = !Mathf.Approximately(main.CurrentSpeed, CurrentSpeed);
+
+            if (NeedsFullRebuild)
+            {
+                // -1 can't match any real step count, so the mesh takes the RemakeMesh path.
+                _LastStepCount = -1;
+                NeedsFullRebuild = false;
+                force = true;
+            }
+
             float offset = float.NaN;
             CurrentSpeed = main.CurrentSpeed;
 
