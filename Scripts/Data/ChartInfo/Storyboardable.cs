@@ -219,10 +219,26 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public abstract TimestampType[] timestampTypes { get; }
 
-        public Storyboardable GetStoryboardableObject(float time) 
+        public Storyboardable GetStoryboardableObject(float time)
         {
-            Storyboardable obj = (Storyboardable)MemberwiseClone();
+            var obj = (Storyboardable)MemberwiseClone();
 
+            UpdateStoryboardObject(time, obj);
+
+            return obj;
+        }
+
+        /// <summary>
+        /// Writes this object's storyboarded values at <paramref name="time"/> into
+        /// <paramref name="target"/>, which the caller owns and keeps between calls.
+        ///
+        /// Same evaluation as <see cref="GetStoryboardableObject"/> without the clone, and
+        /// unlike <see cref="Advance"/> it holds no state, so time may move in either
+        /// direction. Only storyboarded fields are written — the caller is responsible for
+        /// target's other fields matching this object.
+        /// </summary>
+        public void UpdateStoryboardObject(float time, Storyboardable target)
+        {
             foreach (TimestampType timestampType in timestampTypes)
             {
                 Timestamp[] storyboard = Storyboard.FromType(timestampType.ID);
@@ -248,10 +264,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                     else
                         break;
 
-                timestampType.StoryboardSetter(obj, value);
+                timestampType.StoryboardSetter(target, value);
             }
-
-            return obj;
         }
 
         protected float[] CurrentValues;

@@ -117,7 +117,18 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 Lanes.RemoveAt(CurrentChart.Lanes.Count);
             }
+
+            SourcesChanged = false;
         }
+
+        /// <summary>
+        /// Storyboarded values are written into instances that persist across frames, so the
+        /// non-storyboarded fields alongside them are only as current as the last clone.
+        /// Callers must raise this whenever the chart data changes.
+        /// </summary>
+        public void MarkSourcesChanged() => SourcesChanged = true;
+
+        public bool SourcesChanged { get; private set; } = true;
 
         public void Dispose()
         {
@@ -397,6 +408,10 @@ namespace JANOARG.Shared.Data.ChartInfo
             var stepCount = 0;
             bool force = !Mathf.Approximately(main.CurrentSpeed, CurrentSpeed);
 
+            // A culled lane's update never runs, so it can miss the frame on which
+            // main.SourcesChanged was raised. NeedsFullRebuild covers exactly that gap.
+            bool resync = main.SourcesChanged || NeedsFullRebuild;
+
             if (NeedsFullRebuild)
             {
                 // -1 can't match any real step count, so the mesh takes the RemakeMesh path.
@@ -413,15 +428,28 @@ namespace JANOARG.Shared.Data.ChartInfo
                 if (Steps.Count <= a)
                     Steps.Add(new LaneStepManager());
 
-                LaneStep step = (LaneStep)Current.LaneSteps[a].GetStoryboardableObject(pos);
+                LaneStepManager stepManager = Steps[a];
+                LaneStep source = Current.LaneSteps[a];
 
-                if (step.Offset != Steps[a].CurrentStep?.Offset)
+                // Captured before the update below overwrites CurrentStep in place.
+                bool hasPrev = stepManager.CurrentStep != null;
+                BeatPosition prevOffset = hasPrev ? stepManager.CurrentStep.Offset : default;
+                float prevSpeed = hasPrev ? stepManager.CurrentStep.Speed : default;
+
+                if (!hasPrev || resync)
+                    stepManager.CurrentStep = (LaneStep)source.GetStoryboardableObject(pos);
+                else
+                    source.UpdateStoryboardObject(pos, stepManager.CurrentStep);
+
+                LaneStep step = stepManager.CurrentStep;
+
+                if (!hasPrev || step.Offset != prevOffset)
                 {
-                    Steps[a].Offset = main.Song.Timing.ToSeconds(step.Offset);
+                    stepManager.Offset = main.Song.Timing.ToSeconds(step.Offset);
                     force = true;
                 }
 
-                if (step.Speed != Steps[a].CurrentStep?.Speed)
+                if (!hasPrev || step.Speed != prevSpeed)
                     force = true;
 
                 if (force)
@@ -430,9 +458,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     Steps[a].Distance = prev.Distance + CurrentSpeed * step.Speed * (Steps[a].Offset - prev.Offset);
                 }
 
-                Steps[a].CurrentStep = step;
-
-                stepCount += float.IsNaN(offset) 
+                stepCount += float.IsNaN(offset)
                     ? 1 : Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
 
                 offset = Steps[a].Offset;
