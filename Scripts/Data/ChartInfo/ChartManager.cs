@@ -18,8 +18,10 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public float CurrentSpeed;
         public float CurrentTime;
-        public int[] HitObjectsRemaining;
+        public int[] HitObjectsRemaining = new int[2];
         public int   FlicksRemaining;
+
+        private readonly List<string> _GroupKeyScratch = new();
 
         public int ActiveLaneCount;
         public int ActiveHitCount;
@@ -38,7 +40,10 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             PalleteManager.Update(CurrentChart.Palette, pos);
             Camera = (CameraController)CurrentChart.Camera.GetStoryboardableObject(pos);
-            HitObjectsRemaining = new[] { 0, 0 };
+
+            // Reset in place — callers compare against the previous frame's values by copying
+            // the reference out (PlayerView), so the array identity staying stable is fine.
+            HitObjectsRemaining[0] = HitObjectsRemaining[1] = 0;
             FlicksRemaining = 0;
             ActiveLaneCount = ActiveHitCount = ActiveLaneVerts = ActiveLaneTris = 0;
 
@@ -55,13 +60,24 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Groups[group.Name].IsTouched = true;
             }
 
-            foreach (KeyValuePair<string, LaneGroupManager> pair in new Dictionary<string, LaneGroupManager>(Groups))
-                if (pair.Value.IsDirty)
-                    pair.Value.UpdatePosition(this);
-                else if (!pair.Value.IsTouched)
-                    Groups.Remove(pair.Key);
+            // Snapshot the keys (the loop removes from Groups) into a reusable list rather than
+            // cloning the whole dictionary every frame.
+            _GroupKeyScratch.Clear();
+
+            foreach (string key in Groups.Keys)
+                _GroupKeyScratch.Add(key);
+
+            foreach (string key in _GroupKeyScratch)
+            {
+                LaneGroupManager group = Groups[key];
+
+                if (group.IsDirty)
+                    group.UpdatePosition(this);
+                else if (!group.IsTouched)
+                    Groups.Remove(key);
                 else
-                    pair.Value.IsTouched = false;
+                    group.IsTouched = false;
+            }
 
             for (var a = 0; a < CurrentChart.Lanes.Count; a++)
             {
@@ -326,6 +342,16 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
+        // Reused across frames so a per-frame mesh rebuild allocates nothing. Both grow to a
+        // high-water mark and are only ever read up to the current frame's vertex count, so
+        // the tail beyond it is stale by design — never use .Length in place of that count.
+        private Vector3[] _Verts = Array.Empty<Vector3>();
+        private Vector2[] _Uvs   = Array.Empty<Vector2>();
+
+        // Mirrors what RemakeMesh last wrote, so the unchanged-step-count path can re-set the
+        // triangles without reading Mesh.triangles back (which allocates a fresh copy).
+        private int[] _Tris = Array.Empty<int>();
+
         public LaneManager(Lane original, Lane current, float time, float pos, ChartManager main)
         {
             Update(original, current, time, pos, main);
@@ -378,12 +404,21 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Steps.RemoveAt(Current.LaneSteps.Count);
 
             var index = 0;
-            var verts = new Vector3[stepCount * 2];
-            var uvs = new Vector2[stepCount * 2];
+            int vertCount = stepCount * 2;
+
+            if (_Verts.Length < vertCount)
+            {
+                _Verts = new Vector3[vertCount];
+                _Uvs   = new Vector2[vertCount];
+            }
+
+            Vector3[] verts = _Verts;
+            Vector2[] uvs = _Uvs;
+
             LaneStepManager next = null;
             CurrentDistance = float.NaN;
 
-            if (verts.Length > 0)
+            if (vertCount > 0)
                 for (int a = Steps.Count - 1; a >= 0; a--)
                 {
                     LaneStepManager curr = Steps[a];
@@ -396,7 +431,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                         // Debug.Log(index + "/" + verts.Length + " " + verts[index] + " " + verts[index + 1]);
                         index += 2;
 
-                        if (index >= verts.Length)
+                        if (index >= vertCount)
                         {
                             CurrentDistance = curr.Distance + curr.CurrentStep.Speed * CurrentSpeed * (time - curr.Offset);
 
@@ -425,7 +460,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                             break;
                         }
 
-                        if (index >= verts.Length) break;
+                        if (index >= vertCount) break;
                     }
                     else
                     {
@@ -449,7 +484,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                             index += 2;
 
-                            if (x == p || index >= verts.Length) break;
+                            if (x == p || index >= vertCount) break;
                         }
 
                         if (p > 0)
@@ -459,7 +494,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                             break;
                         }
 
-                        if (index >= verts.Length) break;
+                        if (index >= vertCount) break;
                     }
 
                     next = curr;
@@ -468,28 +503,25 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (float.IsNaN(CurrentDistance) && Steps.Count > 0) 
                 CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
 
-            for (var a = 0; a < verts.Length; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
+            for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
+
+            CurrentMesh.Clear();
+            CurrentMesh.SetVertices(verts, 0, vertCount);
+            CurrentMesh.SetUVs(0, uvs, 0, vertCount);
 
             if (stepCount != _LastStepCount)
             {
-                CurrentMesh.Clear();
-                CurrentMesh.SetVertices(verts);
-                CurrentMesh.SetUVs(0, uvs);
                 RemakeMesh(CurrentMesh, stepCount);
                 _LastStepCount = stepCount;
             }
             else
             {
-                int[] tris = CurrentMesh.triangles;
-                CurrentMesh.Clear();
-                CurrentMesh.SetVertices(verts);
-                CurrentMesh.SetUVs(0, uvs);
-                CurrentMesh.SetTriangles(tris, 0);
+                CurrentMesh.SetTriangles(_Tris, 0);
             }
 
             main.ActiveLaneCount++;
-            main.ActiveLaneVerts += verts.Length;
-            main.ActiveLaneTris += CurrentMesh.triangles.Length;
+            main.ActiveLaneVerts += vertCount;
+            main.ActiveLaneTris += _Tris.Length;
 
             FinalPosition = Current.Position;
             FinalRotation = Quaternion.Euler(Current.Rotation);
@@ -740,7 +772,12 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public void RemakeMesh(Mesh mesh, int stepCount)
         {
-            var tris = new int[Mathf.Max((stepCount - 1) * 6, 0)];
+            int triCount = Mathf.Max((stepCount - 1) * 6, 0);
+
+            // Exact-size, not high-water: SetTriangles takes the whole array, so a longer
+            // buffer would submit indices past the end of this frame's vertices.
+            int[] tris = _Tris.Length == triCount ? _Tris : new int[triCount];
+            _Tris = tris;
 
             for (var a = 0; a < stepCount - 1; a++)
             {
@@ -994,9 +1031,13 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (isInRange) 
                 main.ActiveHitCount++;
             
-            // Use null-conditional operators for cleaner code
-            main.ActiveLaneVerts += HoldMesh?.vertices.Length ?? 0;
-            main.ActiveLaneTris += HoldMesh?.triangles.Length ?? 0;
+            // vertexCount/GetIndexCount read the counts directly; .vertices/.triangles would
+            // each copy the whole buffer out of the mesh just to take a Length.
+            if (HoldMesh)
+            {
+                main.ActiveLaneVerts += HoldMesh.vertexCount;
+                main.ActiveLaneTris += (int)HoldMesh.GetIndexCount(0);
+            }
         }
     }
 }
