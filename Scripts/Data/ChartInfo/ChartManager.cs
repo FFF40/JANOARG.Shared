@@ -369,7 +369,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Lane                   Current;
         public List<LaneStepManager>  Steps       = new();
         public List<HitObjectManager> Objects     = new();
-        public Mesh                   CurrentMesh = new();
+        public Mesh                   CurrentMesh = NewDynamicMesh();
 
         public float CurrentSpeed;
         public float CurrentDistance;
@@ -409,6 +409,20 @@ namespace JANOARG.Shared.Data.ChartInfo
         /// </summary>
         public bool NeedsFullRebuild;
 
+        /// <summary>
+        /// Lane and hold meshes are rewritten every frame. Marking them dynamic keeps Unity
+        /// from recreating the GPU buffers on each write, which forces the main thread to
+        /// sync against the render thread during render queue extraction.
+        /// </summary>
+        static Mesh NewDynamicMesh()
+        {
+            var mesh = new Mesh();
+
+            mesh.MarkDynamic();
+
+            return mesh;
+        }
+
         /// <summary>Creates an un-updated lane, for a slot that starts out culled.</summary>
         public LaneManager() { }
 
@@ -423,7 +437,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             Current = current;
 
             if (CurrentMesh == null)
-                CurrentMesh = new Mesh();
+                CurrentMesh = NewDynamicMesh();
 
             var stepCount = 0;
             bool force = !Mathf.Approximately(main.CurrentSpeed, CurrentSpeed);
@@ -1021,6 +1035,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 if (!_HoldMeshInstance)
                 {
                     _HoldMeshInstance = new Mesh();
+                    _HoldMeshInstance.MarkDynamic();
 
                     #if UNITY_EDITOR
                     _HoldMeshInstance.name = $"Hold @{TimeStart:0.###}s";
