@@ -395,6 +395,11 @@ namespace JANOARG.Shared.Data.ChartInfo
         // triangles without reading Mesh.triangles back (which allocates a fresh copy).
         private int[] _Tris = Array.Empty<int>();
 
+        // Scratch for GetPartOfLane, which runs once per in-range hold note per frame.
+        private readonly List<Vector3> _PartVerts = new();
+        private readonly List<Vector2> _PartUvs   = new();
+        private int[] _PartTris = Array.Empty<int>();
+
         /// <summary>True when this lane was updated on the last pass; false when culled.</summary>
         public bool IsActive = true;
 
@@ -639,14 +644,27 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             while (Objects.Count > Current.Objects.Count)
             {
+                Objects[Current.Objects.Count].Dispose();
                 Objects.RemoveAt(Current.Objects.Count);
             }
         }
 
         public Mesh GetPartOfLane(float timeStart, float timeEnd, float xPos, float xLength)
+            => GetPartOfLane(timeStart, timeEnd, xPos, xLength, new Mesh());
+
+        /// <summary>
+        /// Fills <paramref name="target"/> with the slice of this lane between the given
+        /// times. Callers that need the slice every frame should keep one mesh and pass it
+        /// back in — creating a Mesh costs native resource registration, which lands in
+        /// Camera.Render rather than anywhere the GC profiler would show it.
+        /// </summary>
+        public Mesh GetPartOfLane(float timeStart, float timeEnd, float xPos, float xLength, Mesh target)
         {
-            List<Vector3> verts = new();
-            List<Vector2> uvs = new();
+            List<Vector3> verts = _PartVerts;
+            List<Vector2> uvs = _PartUvs;
+
+            verts.Clear();
+            uvs.Clear();
 
             for (int a = Steps.Count - 1; a >= 1; a--)
             {
@@ -730,12 +748,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < verts.Count; a++) uvs.Add(new Vector2(a % 2, verts[a].z));
 
-            Mesh mesh = new();
-            mesh.SetVertices(verts);
-            mesh.SetUVs(0, uvs);
-            RemakeMesh(mesh, verts.Count / 2);
+            target.Clear();
+            target.SetVertices(verts);
+            target.SetUVs(0, uvs);
 
-            return mesh;
+            _PartTris = MakeTriangles(verts.Count / 2, _PartTris);
+            target.SetTriangles(_PartTris, 0);
+
+            return target;
         }
 
         public LanePosition GetLanePosition(float sec, float speed = 1f)
@@ -856,6 +876,9 @@ namespace JANOARG.Shared.Data.ChartInfo
         public void Dispose()
         {
             if (CurrentMesh != null) Object.DestroyImmediate(CurrentMesh);
+
+            foreach (HitObjectManager hitObject in Objects)
+                hitObject.Dispose();
         }
 
         public void RemakeMesh(Mesh mesh, int stepCount)
@@ -912,7 +935,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Vector3 StartPos;
         public Vector3 EndPos;
 
+        /// <summary>This frame's hold tail, or null when the tail shouldn't be drawn.</summary>
         public Mesh HoldMesh;
+
+        // Kept for the manager's lifetime and refilled in place. HoldMesh points at it when
+        // the tail is showing and is nulled otherwise, so consumers keep their existing check.
+        private Mesh _HoldMeshInstance;
 
         public HitObjectManager(HitObject original, HitObject current, float time, LaneManager lane, ChartManager main)
         {
@@ -929,12 +957,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             bool isHoldNote = current.HoldLength > 0;
             TimeEnd = isHoldNote ? main.Song.Timing.ToSeconds(current.Offset + current.HoldLength) : TimeStart;
 
-            // Destroy hold mesh early if it exists
-            if (HoldMesh) 
-            {
-                Object.DestroyImmediate(HoldMesh);
-                HoldMesh = null; // Explicit null assignment for clarity
-            }
+            // Hidden by default; the instance behind it survives so it can be refilled rather
+            // than recreated when the note comes back into range.
+            HoldMesh = null;
 
             // Early return if time is past the end - no need to process further
             if (time > TimeEnd)
@@ -966,9 +991,14 @@ namespace JANOARG.Shared.Data.ChartInfo
             bool isInRange = pos.Offset < lane.CurrentDistance + 250;
             
             // Generate hold mesh only if needed
-            HoldMesh = (isInRange && isHoldNote) 
-                ? lane.GetPartOfLane(Mathf.Max(TimeStart, time), TimeEnd, dataPosition, current.Length) 
-                : null;
+            if (isInRange && isHoldNote)
+            {
+                if (!_HoldMeshInstance) _HoldMeshInstance = new Mesh();
+
+                HoldMesh = lane.GetPartOfLane(
+                    Mathf.Max(TimeStart, time), TimeEnd, dataPosition, current.Length, _HoldMeshInstance
+                );
+            }
 
             // Update counters
             if (isInRange) 
@@ -981,6 +1011,14 @@ namespace JANOARG.Shared.Data.ChartInfo
                 main.ActiveLaneVerts += HoldMesh.vertexCount;
                 main.ActiveLaneTris += (int)HoldMesh.GetIndexCount(0);
             }
+        }
+
+        public void Dispose()
+        {
+            if (_HoldMeshInstance) Object.DestroyImmediate(_HoldMeshInstance);
+
+            _HoldMeshInstance = null;
+            HoldMesh = null;
         }
     }
 }
