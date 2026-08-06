@@ -52,15 +52,26 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < CurrentChart.Groups.Count; a++)
             {
-                var group = (LaneGroup)CurrentChart.Groups[a]
-                    .GetStoryboardableObject(pos);
+                LaneGroup source = CurrentChart.Groups[a];
 
-                if (Groups.ContainsKey(group.Name))
-                    Groups[group.Name]
-                        .Update(group, pos, this);
-                else Groups.Add(group.Name, new LaneGroupManager(group, pos, this));
+                // Name isn't storyboarded, so the key is available without evaluating first.
+                if (Groups.TryGetValue(source.Name, out LaneGroupManager groupManager))
+                {
+                    if (SourcesChanged || groupManager.CurrentGroup == null)
+                        groupManager.CurrentGroup = (LaneGroup)source.GetStoryboardableObject(pos);
+                    else
+                        source.UpdateStoryboardObject(pos, groupManager.CurrentGroup);
 
-                Groups[group.Name].IsTouched = true;
+                    groupManager.Update(groupManager.CurrentGroup, pos, this);
+                }
+                else
+                {
+                    var group = (LaneGroup)source.GetStoryboardableObject(pos);
+
+                    Groups.Add(group.Name, groupManager = new LaneGroupManager(group, pos, this));
+                }
+
+                groupManager.IsTouched = true;
             }
 
             // Snapshot the keys (the loop removes from Groups) into a reusable list rather than
@@ -103,12 +114,16 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 var original = CurrentChart.Lanes[a];
 
-                // Deliberately inside the active branch: GetStoryboardableObject evaluates the
-                // whole storyboard, so skipping it is a real part of the saving.
-                var current = (Lane)original.GetStoryboardableObject(pos);
+                // Deliberately inside the active branch: evaluating the storyboard at all is a
+                // real part of the saving, not just the mesh rebuild below it.
+                // NeedsFullRebuild is read here because manager.Update clears it.
+                if (SourcesChanged || manager.NeedsFullRebuild || manager.Current == null)
+                    manager.Current = (Lane)original.GetStoryboardableObject(pos);
+                else
+                    original.UpdateStoryboardObject(pos, manager.Current);
 
                 manager.IsActive = true;
-                manager.Update(original, current, time, pos, this);
+                manager.Update(original, manager.Current, time, pos, this);
             }
 
             while (Lanes.Count > CurrentChart.Lanes.Count)
@@ -602,13 +617,24 @@ namespace JANOARG.Shared.Data.ChartInfo
             for (var a = 0; a < Current.Objects.Count; a++)
             {
                 var originalHit = Original.Objects[a];
-                var currentHit = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
 
-                if (Objects.Count <= a) Objects.Add(
-                    new HitObjectManager(originalHit, currentHit, time, this, main)
-                );
+                if (Objects.Count <= a)
+                {
+                    var currentHit = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
+
+                    Objects.Add(new HitObjectManager(originalHit, currentHit, time, this, main));
+
+                    continue;
+                }
+
+                HitObjectManager hitManager = Objects[a];
+
+                if (resync || hitManager.Current == null)
+                    hitManager.Current = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
                 else
-                    Objects[a].Update(originalHit, currentHit, time, this, main);
+                    Current.Objects[a].UpdateStoryboardObject(pos, hitManager.Current);
+
+                hitManager.Update(originalHit, hitManager.Current, time, this, main);
             }
 
             while (Objects.Count > Current.Objects.Count)
