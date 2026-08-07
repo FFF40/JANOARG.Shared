@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -21,6 +22,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         public int   FlicksRemaining;
 
         private readonly List<string> _GroupKeyScratch = new();
+
+        // Matches the granularity the Client instruments LanePlayer/PlayerScreen at, so the
+        // two profiles can be read against each other.
+        static readonly ProfilerMarker sr_Groups    = new("ChartManager: Groups");
+        static readonly ProfilerMarker sr_GroupPos  = new("ChartManager: Group Positions");
+        static readonly ProfilerMarker sr_Lanes     = new("ChartManager: Lanes");
 
         public int ActiveLaneCount;
         public int ActiveHitCount;
@@ -50,6 +57,8 @@ namespace JANOARG.Shared.Data.ChartInfo
             FlicksRemaining = 0;
             ActiveLaneCount = ActiveHitCount = ActiveLaneVerts = ActiveLaneTris = 0;
 
+            sr_Groups.Begin();
+
             for (var a = 0; a < CurrentChart.Groups.Count; a++)
             {
                 LaneGroup source = CurrentChart.Groups[a];
@@ -74,6 +83,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                 groupManager.IsTouched = true;
             }
 
+            sr_Groups.End();
+            sr_GroupPos.Begin();
+
             // Snapshot the keys (the loop removes from Groups) into a reusable list rather than
             // cloning the whole dictionary every frame.
             _GroupKeyScratch.Clear();
@@ -92,6 +104,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                 else
                     group.IsTouched = false;
             }
+
+            sr_GroupPos.End();
+            sr_Lanes.Begin();
 
             for (var a = 0; a < CurrentChart.Lanes.Count; a++)
             {
@@ -132,6 +147,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 Lanes.RemoveAt(CurrentChart.Lanes.Count);
             }
+
+            sr_Lanes.End();
 
             SourcesChanged = false;
         }
@@ -385,6 +402,11 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
+        static readonly ProfilerMarker sr_Steps      = new("Lane Update: Step Loop");
+        static readonly ProfilerMarker sr_Verts      = new("Lane Update: Vertex Build");
+        static readonly ProfilerMarker sr_MeshUpload = new("Lane Update: Mesh Upload");
+        static readonly ProfilerMarker sr_HitObjects = new("Lane Update: Hit Objects");
+
         // Reused across frames so a per-frame mesh rebuild allocates nothing. Both grow to a
         // high-water mark and are only ever read up to the current frame's vertex count, so
         // the tail beyond it is stale by design — never use .Length in place of that count.
@@ -459,6 +481,8 @@ namespace JANOARG.Shared.Data.ChartInfo
             float offset = float.NaN;
             CurrentSpeed = main.CurrentSpeed;
 
+            sr_Steps.Begin();
+
             for (var a = 0; a < Current.LaneSteps.Count; a++)
             {
                 if (Steps.Count <= a)
@@ -500,8 +524,11 @@ namespace JANOARG.Shared.Data.ChartInfo
                 offset = Steps[a].Offset;
             }
 
-            while (Steps.Count > Current.LaneSteps.Count) 
+            while (Steps.Count > Current.LaneSteps.Count)
                 Steps.RemoveAt(Current.LaneSteps.Count);
+
+            sr_Steps.End();
+            sr_Verts.Begin();
 
             var index = 0;
             int vertCount = stepCount * 2;
@@ -607,6 +634,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (float.IsNaN(CurrentDistance) && Steps.Count > 0) 
                 CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
 
+            sr_Verts.End();
+            sr_MeshUpload.Begin();
+
             // Fewer than two steps produces no triangles, so the mesh draws nothing. Rewriting
             // it anyway recreates its GPU buffers every frame, and that recreation is what
             // stalls the main thread during render queue extraction — a lane sitting inside
@@ -646,6 +676,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                 CurrentMesh.SetTriangles(_Tris, 0);
             }
 
+            sr_MeshUpload.End();
+
             main.ActiveLaneCount++;
             main.ActiveLaneVerts += vertCount;
             main.ActiveLaneTris += _Tris.Count;
@@ -663,6 +695,8 @@ namespace JANOARG.Shared.Data.ChartInfo
             EndPos = FinalRotation * EndPos + FinalPosition;
 
 
+
+            sr_HitObjects.Begin();
 
             for (var a = 0; a < Current.Objects.Count; a++)
             {
@@ -692,6 +726,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Objects[Current.Objects.Count].Dispose();
                 Objects.RemoveAt(Current.Objects.Count);
             }
+
+            sr_HitObjects.End();
         }
 
         public Mesh GetPartOfLane(float timeStart, float timeEnd, float xPos, float xLength)
