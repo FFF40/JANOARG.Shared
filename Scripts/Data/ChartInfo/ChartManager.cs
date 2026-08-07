@@ -393,12 +393,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         // Mirrors what RemakeMesh last wrote, so the unchanged-step-count path can re-set the
         // triangles without reading Mesh.triangles back (which allocates a fresh copy).
-        private int[] _Tris = Array.Empty<int>();
+        // A List rather than an array because SetTriangles reads its Count, which lets the
+        // capacity persist across a changing triangle count instead of reallocating.
+        private readonly List<int> _Tris = new();
 
         // Scratch for GetPartOfLane, which runs once per in-range hold note per frame.
         private readonly List<Vector3> _PartVerts = new();
         private readonly List<Vector2> _PartUvs   = new();
-        private int[] _PartTris = Array.Empty<int>();
+        private readonly List<int>     _PartTris  = new();
 
         /// <summary>True when this lane was updated on the last pass; false when culled.</summary>
         public bool IsActive = true;
@@ -506,8 +508,12 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             if (_Verts.Length < vertCount)
             {
-                _Verts = new Vector3[vertCount];
-                _Uvs   = new Vector2[vertCount];
+                // Doubling, not exact fit: a lane scrolling into view gains steps every frame,
+                // so an exact fit reallocates both arrays on every one of those frames.
+                int capacity = Mathf.Max(vertCount, _Verts.Length * 2);
+
+                _Verts = new Vector3[capacity];
+                _Uvs   = new Vector2[capacity];
             }
 
             Vector3[] verts = _Verts;
@@ -611,7 +617,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 {
                     CurrentMesh.Clear();
 
-                    _Tris = Array.Empty<int>();
+                    _Tris.Clear();
                     _LastStepCount = stepCount;
                 }
             }
@@ -625,7 +631,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 if (stepCount != _LastStepCount)
                 {
-                    _Tris = MakeTriangles(stepCount, _Tris);
+                    FillTriangles(_Tris, stepCount);
                     _LastStepCount = stepCount;
 
                     #if UNITY_EDITOR
@@ -642,7 +648,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             main.ActiveLaneCount++;
             main.ActiveLaneVerts += vertCount;
-            main.ActiveLaneTris += _Tris.Length;
+            main.ActiveLaneTris += _Tris.Count;
 
             FinalPosition = Current.Position;
             FinalRotation = Quaternion.Euler(Current.Rotation);
@@ -791,7 +797,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             target.SetVertices(verts);
             target.SetUVs(0, uvs);
 
-            _PartTris = MakeTriangles(verts.Count / 2, _PartTris);
+            FillTriangles(_PartTris, verts.Count / 2);
             target.SetTriangles(_PartTris, 0);
 
             return target;
@@ -922,31 +928,32 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public void RemakeMesh(Mesh mesh, int stepCount)
         {
-            mesh.SetTriangles(MakeTriangles(stepCount, null), 0);
+            var tris = new List<int>();
+
+            FillTriangles(tris, stepCount);
+            mesh.SetTriangles(tris, 0);
         }
 
         /// <summary>
-        /// Fills and returns <paramref name="buffer"/> when it is exactly the right length,
-        /// otherwise a new array. Exact length rather than high-water: SetTriangles consumes
-        /// the whole array, so a longer one would index past the vertices uploaded with it.
+        /// Rewrites <paramref name="tris"/> as the strip for <paramref name="stepCount"/>.
+        /// Clearing a list keeps its capacity, so a changing step count stops allocating after
+        /// the first few frames — an exact-length array would have to be replaced every time
+        /// the count moved, since SetTriangles consumes the whole array.
         /// </summary>
-        static int[] MakeTriangles(int stepCount, int[] buffer)
+        static void FillTriangles(List<int> tris, int stepCount)
         {
-            int triCount = Mathf.Max((stepCount - 1) * 6, 0);
-            int[] tris = buffer != null && buffer.Length == triCount ? buffer : new int[triCount];
+            tris.Clear();
 
             for (var a = 0; a < stepCount - 1; a++)
             {
-                tris[a * 6 + 0] = a * 2;
-                tris[a * 6 + 1] = a * 2 + 1;
-                tris[a * 6 + 2] = a * 2 + 2;
+                tris.Add(a * 2);
+                tris.Add(a * 2 + 1);
+                tris.Add(a * 2 + 2);
 
-                tris[a * 6 + 3] = a * 2 + 2;
-                tris[a * 6 + 4] = a * 2 + 1;
-                tris[a * 6 + 5] = a * 2 + 3;
+                tris.Add(a * 2 + 2);
+                tris.Add(a * 2 + 1);
+                tris.Add(a * 2 + 3);
             }
-
-            return tris;
         }
     }
 
