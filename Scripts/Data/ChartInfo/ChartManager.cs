@@ -402,6 +402,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
+        // What the mesh currently holds, so the clear can be limited to a shrink.
+        private int _LastVertCount;
+
         /// <summary>
         /// How far past the current position geometry is still worth building. Linear fog in
         /// the chart scene is opaque at 200 units; this leaves margin. HitObjectManager uses
@@ -685,18 +688,32 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                     _Tris.Clear();
                     _LastStepCount = stepCount;
+                    _LastVertCount = 0;
                 }
             }
             else
             {
                 for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
 
-                CurrentMesh.Clear();
+                // Clearing drops the buffers MarkDynamic asked Unity to keep, and it is only
+                // required when the vertex count falls — last frame's indices can only point
+                // past the end if there are now fewer vertices than before.
+                bool shrank = vertCount < _LastVertCount;
+
+                if (shrank) CurrentMesh.Clear();
+
+                _LastVertCount = vertCount;
+
                 CurrentMesh.SetVertices(verts, 0, vertCount);
                 CurrentMesh.SetUVs(0, uvs, 0, vertCount);
 
+                // Without the clear the previous indices survive, so they only need
+                // re-uploading when they actually changed.
+                bool trisChanged = shrank;
+
                 if (stepCount != _LastStepCount)
                 {
+                    trisChanged = true;
                     FillTriangles(_Tris, stepCount);
                     _LastStepCount = stepCount;
 
@@ -709,7 +726,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                     #endif
                 }
 
-                CurrentMesh.SetTriangles(_Tris, 0);
+                if (trisChanged)
+                    CurrentMesh.SetTriangles(_Tris, 0);
             }
 
             sr_MeshUpload.End();
