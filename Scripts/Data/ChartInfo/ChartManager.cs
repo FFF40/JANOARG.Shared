@@ -405,6 +405,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         // What the mesh currently holds, so the clear can be limited to a shrink.
         private int _LastVertCount;
 
+        // State for the static-lane skip: which step pair the playhead sat in, how far the fog
+        // trim reached, and whether there is a previous build to reuse at all.
+        private int  _LastSegment = -1;
+        private int  _LastBuiltStep = -1;
+        private bool _HasBuiltMesh;
+
         /// <summary>
         /// How far past the current position geometry is still worth building. Linear fog in
         /// the chart scene is opaque at 200 units; this leaves margin. HitObjectManager uses
@@ -559,6 +565,31 @@ namespace JANOARG.Shared.Data.ChartInfo
                     lastStep--;
             }
 
+            // Ported from the Client's static-lane skip (LanePlayer.UpdateMesh). Segments ahead
+            // of the playhead already interpolate at progress 0, so they emit their own step's
+            // values and don't depend on time — only the segment containing the playhead moves.
+            // Freeze that one and the whole strip is unchanged.
+            //
+            // Zero speed alone isn't enough here, unlike in the Client: it fixes the segment's
+            // distance, but its lateral position still lerps with progress. Requiring the two
+            // steps to share start and end points makes that lerp constant too.
+            int segment = Steps.Count > 1 ? FindStepIndex(time) : 0;
+
+            bool geometryStatic =
+                !force
+                && _HasBuiltMesh
+                && Steps.Count > 2
+                && segment >= 1
+                && segment == _LastSegment
+                && lastStep == _LastBuiltStep
+                && Steps[segment - 1].CurrentStep.Speed == 0f
+                && Steps[segment].CurrentStep.Speed == 0f
+                && Steps[segment - 1].CurrentStep.StartPointPosition == Steps[segment].CurrentStep.StartPointPosition
+                && Steps[segment - 1].CurrentStep.EndPointPosition   == Steps[segment].CurrentStep.EndPointPosition;
+
+            _LastSegment   = segment;
+            _LastBuiltStep = lastStep;
+
             for (var a = 0; a <= lastStep; a++)
             {
                 LaneStep step = Steps[a].CurrentStep;
@@ -586,9 +617,15 @@ namespace JANOARG.Shared.Data.ChartInfo
             Vector2[] uvs = _Uvs;
 
             LaneStepManager next = null;
-            CurrentDistance = float.NaN;
 
-            if (vertCount > 0)
+            // Skipped entirely when static: the pooled arrays still hold last frame's vertices,
+            // stepCount is unchanged under the same conditions, and CurrentDistance is constant
+            // — so it must not be reset to NaN here or the fallback below would overwrite it
+            // with the before-the-lane-starts formula.
+            if (!geometryStatic)
+                CurrentDistance = float.NaN;
+
+            if (!geometryStatic && vertCount > 0)
                 for (int a = lastStep; a >= 0; a--)
                 {
                     LaneStepManager curr = Steps[a];
@@ -670,8 +707,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                     next = curr;
                 }
 
-            if (float.IsNaN(CurrentDistance) && Steps.Count > 0) 
+            if (float.IsNaN(CurrentDistance) && Steps.Count > 0)
                 CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
+
+            _HasBuiltMesh = true;
 
             sr_Verts.End();
             sr_MeshUpload.Begin();
@@ -691,7 +730,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     _LastVertCount = 0;
                 }
             }
-            else
+            else if (!geometryStatic)
             {
                 for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
 
