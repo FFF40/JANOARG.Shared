@@ -402,6 +402,13 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
+        /// <summary>
+        /// How far past the current position geometry is still worth building. Linear fog in
+        /// the chart scene is opaque at 200 units; this leaves margin. HitObjectManager uses
+        /// the same budget to decide whether a hit object is in range.
+        /// </summary>
+        public const float VisibleDistance = 250f;
+
         static readonly ProfilerMarker sr_Steps      = new("Lane Update: Step Loop");
         static readonly ProfilerMarker sr_Verts      = new("Lane Update: Vertex Build");
         static readonly ProfilerMarker sr_MeshUpload = new("Lane Update: Mesh Upload");
@@ -522,10 +529,6 @@ namespace JANOARG.Shared.Data.ChartInfo
                     Steps[a].Distance = prev.Distance + CurrentSpeed * step.Speed * (Steps[a].Offset - prev.Offset);
                 }
 
-                stepCount += float.IsNaN(offset)
-                    ? 1 : Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
-
-                offset = Steps[a].Offset;
             }
 
             while (Steps.Count > Current.LaneSteps.Count)
@@ -533,6 +536,35 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             sr_Steps.End();
             sr_Verts.Begin();
+
+            // The strip runs from the current time to the lane's last step, which for a long
+            // lane is mostly geometry sitting past the fog's far end (linear fog is opaque at
+            // 200 units) and therefore invisible. Trim a run of steps off the far end.
+            //
+            // Only a contiguous run, and only from the end: Speed may be negative or
+            // storyboarded below zero, so Distance is not guaranteed to rise with step index.
+            // A lane that retreats and re-enters view stops the trim at its first visible
+            // interval, which both keeps that geometry and avoids tearing a hole in the strip.
+            int lastStep = Steps.Count - 1;
+
+            if (Steps.Count >= 2)
+            {
+                float cutoff = GetLanePosition(time, CurrentSpeed).Offset + VisibleDistance;
+
+                while (lastStep >= 1
+                       && Mathf.Min(Steps[lastStep - 1].Distance, Steps[lastStep].Distance) > cutoff)
+                    lastStep--;
+            }
+
+            for (var a = 0; a <= lastStep; a++)
+            {
+                LaneStep step = Steps[a].CurrentStep;
+
+                stepCount += float.IsNaN(offset)
+                    ? 1 : Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
+
+                offset = Steps[a].Offset;
+            }
 
             var index = 0;
             int vertCount = stepCount * 2;
@@ -554,7 +586,7 @@ namespace JANOARG.Shared.Data.ChartInfo
             CurrentDistance = float.NaN;
 
             if (vertCount > 0)
-                for (int a = Steps.Count - 1; a >= 0; a--)
+                for (int a = lastStep; a >= 0; a--)
                 {
                     LaneStepManager curr = Steps[a];
 
