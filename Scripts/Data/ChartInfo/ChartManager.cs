@@ -419,6 +419,10 @@ namespace JANOARG.Shared.Data.ChartInfo
         // capacity persist across a changing triangle count instead of reallocating.
         private readonly List<int> _Tris = new();
 
+        // GetLanePosition runs once per in-range hit object per frame and its result is read
+        // immediately, never retained, so one instance is refilled rather than allocated.
+        private readonly LanePosition _Position = new();
+
         // Scratch for GetPartOfLane, which runs once per in-range hold note per frame.
         private readonly List<Vector3> _PartVerts = new();
         private readonly List<Vector2> _PartUvs   = new();
@@ -850,12 +854,11 @@ namespace JANOARG.Shared.Data.ChartInfo
                 
                 var firstStep = Steps[0];
                 var firstLaneStep = Current.LaneSteps[0];
-                return new LanePosition
-                {
-                    StartPosition = firstLaneStep.StartPointPosition,
-                    EndPosition = firstLaneStep.EndPointPosition,
-                    Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStep.Offset - sec)
-                };
+                _Position.StartPosition = firstLaneStep.StartPointPosition;
+                _Position.EndPosition = firstLaneStep.EndPointPosition;
+                _Position.Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStep.Offset - sec);
+
+                return _Position;
             }
             
             var firstStepOffset = Steps[0].Offset;
@@ -866,12 +869,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 var firstStep = Steps[0];
                 var firstLaneStep = Current.LaneSteps[0];
-                return new LanePosition
-                {
-                    StartPosition = firstLaneStep.StartPointPosition,
-                    EndPosition = firstLaneStep.EndPointPosition,
-                    Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStepOffset - sec)
-                };
+                _Position.StartPosition = firstLaneStep.StartPointPosition;
+                _Position.EndPosition = firstLaneStep.EndPointPosition;
+                _Position.Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStepOffset - sec);
+
+                return _Position;
             }
             
             // Handle time after last step
@@ -879,12 +881,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 var lastStep = Steps[stepCount - 1];
                 var lastLaneStep = Current.LaneSteps[stepCount - 1];
-                return new LanePosition
-                {
-                    StartPosition = lastLaneStep.StartPointPosition,
-                    EndPosition = lastLaneStep.EndPointPosition,
-                    Offset = lastStep.Distance + lastStep.CurrentStep.Speed * speed * (sec - lastStepOffset)
-                };
+                _Position.StartPosition = lastLaneStep.StartPointPosition;
+                _Position.EndPosition = lastLaneStep.EndPointPosition;
+                _Position.Offset = lastStep.Distance + lastStep.CurrentStep.Speed * speed * (sec - lastStepOffset);
+
+                return _Position;
             }
             
             // Binary search for the correct step interval
@@ -901,12 +902,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             
             if (currentStep.IsLinear)
             {
-                return new LanePosition
-                {
-                    StartPosition = Vector2.LerpUnclamped(prevStep.StartPointPosition, currentStep.StartPointPosition, prevToCurrentProgress),
-                    EndPosition = Vector2.LerpUnclamped(prevStep.EndPointPosition, currentStep.EndPointPosition, prevToCurrentProgress),
-                    Offset = offsetValue
-                };
+                _Position.StartPosition = Vector2.LerpUnclamped(prevStep.StartPointPosition, currentStep.StartPointPosition, prevToCurrentProgress);
+                _Position.EndPosition = Vector2.LerpUnclamped(prevStep.EndPointPosition, currentStep.EndPointPosition, prevToCurrentProgress);
+                _Position.Offset = offsetValue;
+
+                return _Position;
             }
             
             // Non-linear interpolation
@@ -915,18 +915,19 @@ namespace JANOARG.Shared.Data.ChartInfo
             float endEaseX = currentStep.EndEaseX.Get(prevToCurrentProgress);
             float endEaseY = currentStep.EndEaseY.Get(prevToCurrentProgress);
             
-            return new LanePosition
-            {
-                StartPosition = new Vector2(
-                    Mathf.LerpUnclamped(prevStep.StartPointPosition.x, currentStep.StartPointPosition.x, startEaseX),
-                    Mathf.LerpUnclamped(prevStep.StartPointPosition.y, currentStep.StartPointPosition.y, startEaseY)
-                ),
-                EndPosition = new Vector2(
-                    Mathf.LerpUnclamped(prevStep.EndPointPosition.x, currentStep.EndPointPosition.x, endEaseX),
-                    Mathf.LerpUnclamped(prevStep.EndPointPosition.y, currentStep.EndPointPosition.y, endEaseY)
-                ),
-                Offset = offsetValue
-            };
+            _Position.StartPosition = new Vector2(
+                Mathf.LerpUnclamped(prevStep.StartPointPosition.x, currentStep.StartPointPosition.x, startEaseX),
+                Mathf.LerpUnclamped(prevStep.StartPointPosition.y, currentStep.StartPointPosition.y, startEaseY)
+            );
+
+            _Position.EndPosition = new Vector2(
+                Mathf.LerpUnclamped(prevStep.EndPointPosition.x, currentStep.EndPointPosition.x, endEaseX),
+                Mathf.LerpUnclamped(prevStep.EndPointPosition.y, currentStep.EndPointPosition.y, endEaseY)
+            );
+
+            _Position.Offset = offsetValue;
+
+            return _Position;
         }
 
         // Binary search to find the step index - O(log n) instead of O(n)
