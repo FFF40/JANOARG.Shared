@@ -16,8 +16,6 @@ Shader "JANOARG/Hold Tail/Default"
         Pass
         {
             CGPROGRAM
-            // Upgrade NOTE: excluded shader from DX11; has structs without semantics (struct v2f members fogCoord)
-            #pragma exclude_renderers d3d11
             #pragma vertex vert
             #pragma fragment frag
             // make fog work
@@ -55,7 +53,16 @@ Shader "JANOARG/Hold Tail/Default"
             {
                 // sample the texture
                 fixed4 col = tex2D(_MainTex, i.uv) * _Color;
-                col.a *= min(max(i.fogCoord.x, 0), 1);
+
+                // The tail fades with distance by reusing the fog coordinate. UNITY_FOG_COORDS
+                // only declares fogCoord when a fog keyword is set, and multi_compile_fog also
+                // builds a no-fog variant where it expands to nothing — so reading it here has
+                // to be guarded the same way the declaration is. Without fog there is nothing
+                // to fade into, so the tail stays at full alpha.
+                #if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
+                    col.a *= min(max(i.fogCoord.x, 0), 1);
+                #endif
+
                 return col;
             }
             ENDCG
