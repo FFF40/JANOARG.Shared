@@ -1067,7 +1067,16 @@ namespace JANOARG.Shared.Data.ChartInfo
             EndPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, dataPosition + current.Length) + forwardedOffset;
 
             Position = (StartPos + EndPos) * 0.5f; // Multiply by 0.5f is slightly faster than divide by 2
-            Rotation = Quaternion.LookRotation(EndPos - StartPos) * Quaternion.Euler(0, 90, 0);
+
+            // A hit object with zero Length puts a zero-length vector into LookRotation, which
+            // logs an error and returns identity. Guarding it keeps the same result without the
+            // log; Unity's own normalize threshold is 1e-5, so match it rather than test != 0.
+            Vector3 direction = EndPos - StartPos;
+
+            Rotation = direction.sqrMagnitude > 1e-10f
+                ? Quaternion.LookRotation(direction) * Quaternion.Euler(0, 90, 0)
+                : Quaternion.Euler(0, 90, 0);
+
             Length = Vector3.Distance(StartPos, EndPos);
 
             // Cache the distance check result
