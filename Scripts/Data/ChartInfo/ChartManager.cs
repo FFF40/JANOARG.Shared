@@ -68,7 +68,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 {
                     if (SourcesChanged || groupManager.CurrentGroup == null)
                         groupManager.CurrentGroup = (LaneGroup)source.GetStoryboardableObject(pos);
-                    else
+                    else if (source.Storyboard.Timestamps.Count > 0)
                         source.UpdateStoryboardObject(pos, groupManager.CurrentGroup);
 
                     groupManager.Update(groupManager.CurrentGroup, pos, this);
@@ -134,7 +134,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 // NeedsFullRebuild is read here because manager.Update clears it.
                 if (SourcesChanged || manager.NeedsFullRebuild || manager.Current == null)
                     manager.Current = (Lane)original.GetStoryboardableObject(pos);
-                else
+                else if (original.Storyboard.Timestamps.Count > 0)
                     original.UpdateStoryboardObject(pos, manager.Current);
 
                 manager.IsActive = true;
@@ -518,7 +518,11 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 if (!hasPrev || resync)
                     stepManager.CurrentStep = (LaneStep)source.GetStoryboardableObject(pos);
-                else
+
+                // With no timestamps every property evaluates to the source's own value, which
+                // the target already holds from its last clone — so the whole evaluation is a
+                // read and a write of the same number, six property types deep.
+                else if (source.Storyboard.Timestamps.Count > 0)
                     source.UpdateStoryboardObject(pos, stepManager.CurrentStep);
 
                 LaneStep step = stepManager.CurrentStep;
@@ -808,7 +812,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 if (resync || hitManager.Current == null)
                     hitManager.Current = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
-                else
+                else if (Current.Objects[a].Storyboard.Timestamps.Count > 0)
                     Current.Objects[a].UpdateStoryboardObject(pos, hitManager.Current);
 
                 hitManager.Update(originalHit, hitManager.Current, time, this, main);
