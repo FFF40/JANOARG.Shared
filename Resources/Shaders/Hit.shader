@@ -1,4 +1,4 @@
-Shader "JANOARG/Styles/Default - Hit"
+Shader "JANOARG/Hit/Default"
 {
     Properties
     {

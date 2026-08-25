@@ -802,6 +802,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             return (highlight, glow);
         }
+
+        public static Material LoadStyleMaterial(string type, string id)
+        {
+            Material mat = Resources.Load<Material>($"Materials/{type}/{id}");
+            if (mat) return mat;
+            mat = Resources.Load<Material>($"Materials/{type}/Default");
+            return mat;
+        }
     }
 
     [System.Serializable]
@@ -813,7 +821,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         public float        Length;
         public float        HoldLength = 0;
         public bool         Flickable;
-        public float        FlickDirection = -1;
+        [ToggleableFloat]
+        public float        FlickDirection = float.NaN;
 
         public bool IsSimultaneous;
 

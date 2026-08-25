@@ -164,9 +164,9 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             // Debug.Log(style.LaneMaterial);
 
-            if (BaseLaneMaterial?.name != style.LaneMaterial) LaneMaterial = new Material(BaseLaneMaterial = Resources.Load<Material>("Materials/Lane/" + style.LaneMaterial));
+            if (BaseLaneMaterial?.name != style.LaneMaterial) LaneMaterial = new Material(BaseLaneMaterial = InternalChartTool.LoadStyleMaterial("Lane", style.LaneMaterial));
 
-            if (BaseJudgeMaterial?.name != style.JudgeMaterial) JudgeMaterial = new Material(BaseJudgeMaterial = Resources.Load<Material>("Materials/Judge/" + style.LaneMaterial));
+            if (BaseJudgeMaterial?.name != style.JudgeMaterial) JudgeMaterial = new Material(BaseJudgeMaterial = InternalChartTool.LoadStyleMaterial("Judge", style.JudgeMaterial));
 
             if (LaneMaterial) LaneMaterial.SetColor(style.LaneColorTarget, style.LaneColor);
             if (JudgeMaterial) JudgeMaterial.SetColor(style.JudgeColorTarget, style.JudgeColor);
@@ -204,20 +204,20 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             if (!BaseMainMaterial || BaseMainMaterial.name != style.MainMaterial)
             {
-                NormalMaterial = new Material(BaseMainMaterial = Resources.Load<Material>("Materials/Hit/" + style.MainMaterial));
+                NormalMaterial = new Material(BaseMainMaterial = InternalChartTool.LoadStyleMaterial("Hit", style.MainMaterial));
                 CatchMaterial = new Material(BaseMainMaterial);
             }
 
             if (!BaseHighlightMaterial || BaseHighlightMaterial.name != style.MainMaterial)
             {
-                NormalHighlightMaterial = new Material(BaseHighlightMaterial = Resources.Load<Material>("Materials/Highlight/" + style.MainMaterial));
+                NormalHighlightMaterial = new Material(BaseHighlightMaterial = InternalChartTool.LoadStyleMaterial("Highlight", style.MainMaterial));
                 NormalHighlightGlowMaterial = new Material(BaseHighlightMaterial);
                 CatchHighlightMaterial = new Material(BaseHighlightMaterial);
                 CatchHighlightGlowMaterial = new Material(BaseHighlightMaterial);
             }
 
             if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 
-                HoldTailMaterial = new Material(BaseHoldTailMaterial = Resources.Load<Material>("Materials/Hold/" + style.HoldTailMaterial));
+                HoldTailMaterial = new Material(BaseHoldTailMaterial = InternalChartTool.LoadStyleMaterial("Hold", style.HoldTailMaterial));
 
             if (NormalMaterial)
                 NormalMaterial.SetColor(style.MainColorTarget, style.NormalColor);
