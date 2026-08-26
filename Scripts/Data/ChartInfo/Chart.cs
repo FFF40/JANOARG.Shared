@@ -307,6 +307,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             LaneStyle clone = new()
             {
+                Name = Name,
                 LaneMaterial = LaneMaterial,
                 LaneColorTarget = LaneColorTarget,
                 LaneColor = new Color(LaneColor.r, LaneColor.g, LaneColor.b, LaneColor.a),
@@ -434,6 +435,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             HitStyle clone = new()
             {
+                Name = Name,
                 MainMaterial = MainMaterial,
                 MainColorTarget = MainColorTarget,
                 NormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, NormalColor.a),
@@ -678,6 +680,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             Lane clone = new()
             {
+                Name = Name,
                 Position = new Vector3(Position.x, Position.y, Position.z),
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Group = Group,

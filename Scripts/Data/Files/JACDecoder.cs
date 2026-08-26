@@ -405,8 +405,6 @@ namespace JANOARG.Shared.Data.Files
 
         private static IEaseDirective ParseEasing(string str)
         {
-            Debug.Log(str);
-
             if (str == "Linear") return new BasicEaseDirective(EaseFunction.Linear, EaseMode.In);
 
             string[] tokens = str.Split('/');
