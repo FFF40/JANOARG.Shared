@@ -402,9 +402,6 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
-        // What the mesh currently holds, so the clear can be limited to a shrink.
-        private int _LastVertCount;
-
         // State for the static-lane skip: which step pair the playhead sat in, how far the fog
         // trim reached, and whether there is a previous build to reuse at all.
         private int  _LastSegment = -1;
@@ -735,7 +732,6 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                     _Tris.Clear();
                     _LastStepCount = stepCount;
-                    _LastVertCount = 0;
                 }
 
                 // An empty mesh is nothing to reuse, so the skip above must not treat it as a build.
@@ -745,25 +741,17 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
 
-                // Clearing drops the buffers MarkDynamic asked Unity to keep, and it is only
-                // required when the vertex count falls — last frame's indices can only point
-                // past the end if there are now fewer vertices than before.
-                bool shrank = vertCount < _LastVertCount;
-
-                if (shrank) CurrentMesh.Clear();
-
-                _LastVertCount = vertCount;
+                // Rebuilt in full every frame. Skipping either the clear or the re-index is
+                // what 0291352 attempted and what bisected to the vanishing lane strip - do
+                // not reintroduce a condition here without a profile and a repro to check it
+                // against.
+                CurrentMesh.Clear();
 
                 CurrentMesh.SetVertices(verts, 0, vertCount);
                 CurrentMesh.SetUVs(0, uvs, 0, vertCount);
 
-                // Without the clear the previous indices survive, so they only need
-                // re-uploading when they actually changed.
-                bool trisChanged = shrank;
-
                 if (stepCount != _LastStepCount)
                 {
-                    trisChanged = true;
                     FillTriangles(_Tris, stepCount);
                     _LastStepCount = stepCount;
 
@@ -776,8 +764,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                     #endif
                 }
 
-                if (trisChanged)
-                    CurrentMesh.SetTriangles(_Tris, 0);
+                CurrentMesh.SetTriangles(_Tris, 0);
 
                 // Raised only here: this is the one path that leaves geometry on the GPU.
                 _HasBuiltMesh = true;
