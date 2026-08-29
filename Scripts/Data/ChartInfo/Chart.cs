@@ -801,7 +801,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         const float GlowContrastShift      = 0.25f;
 
         const float HighlightOpacity = 0.5f;
-        const float GlowOpacity      = 0.55f;
+        const float GlowOpacity      = 0.8f;
 
         // Luminance gap between note and background at which the shift reaches full
         // strength. Below it the shift scales down proportionally.
