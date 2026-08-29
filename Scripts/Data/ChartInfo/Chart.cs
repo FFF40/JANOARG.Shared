@@ -795,25 +795,35 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public static class InternalChartTool
     {
-        // How far the highlight and glow are pushed toward white. Lerping toward white
-        // raises value and lowers saturation in one step, which is how emissive things
-        // read as hotter - and because it never moves hue, it cannot blur the
-        // Normal/Catch distinction the way a hue skew would. It no-ops on notes that
-        // are already white, which is most of them; the additive glow carries those.
-        const float HighlightWhiteLift = 0.25f;
-        const float GlowWhiteLift      = 0.45f;
+        // A light touch on purpose: the highlight has to still read as the colour of
+        // the note it is carrying, so pull saturation down slightly rather than washing
+        // toward white. Luminance is preserved, so this cannot blow out on light
+        // backgrounds the way a brightness lift does, and it never moves hue, so it
+        // cannot blur the Normal/Catch distinction the way a hue skew would.
+        const float HighlightDesaturation = 0.12f;
+        const float GlowDesaturation      = 0.20f;
 
-        // Under the additive Highlight shader, alpha is intensity rather than opacity.
-        const float HighlightIntensity = 0.5f;
-        const float GlowIntensity      = 0.4f;
+        const float HighlightOpacity = 0.5f;
+        const float GlowOpacity      = 0.4f;
+
+        static Color Desaturate(Color color, float amount)
+        {
+            float grey = color.r * 0.2126f + color.g * 0.7152f + color.b * 0.0722f;
+
+            return new Color(
+                Mathf.Lerp(color.r, grey, amount),
+                Mathf.Lerp(color.g, grey, amount),
+                Mathf.Lerp(color.b, grey, amount),
+                color.a);
+        }
 
         public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor)
         {
-            Color highlight = Color.Lerp(baseColor, Color.white, HighlightWhiteLift);
-            highlight.a = baseColor.a * HighlightIntensity;
+            Color highlight = Desaturate(baseColor, HighlightDesaturation);
+            highlight.a = baseColor.a * HighlightOpacity;
 
-            Color glow = Color.Lerp(baseColor, Color.white, GlowWhiteLift);
-            glow.a = baseColor.a * GlowIntensity;
+            Color glow = Desaturate(baseColor, GlowDesaturation);
+            glow.a = baseColor.a * GlowOpacity;
 
             return (highlight, glow);
         }

@@ -8,10 +8,10 @@ Shader "JANOARG/Highlight/Default"
     SubShader
     {
         Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" }
-        // Additive: the simultaneous highlight is a signal, not decoration, so it
-        // has to add light rather than average toward the background the way an
-        // alpha-blended wash does. Alpha therefore reads as intensity here.
-        Blend SrcAlpha One
+        // Alpha blended, not additive: charts run on both dark and light backgrounds
+        // (13 of 38 have a background brighter than 0.5 luminance), and adding light
+        // on a near-white field just clips to white and destroys the note's colour.
+        Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Off
         LOD 100
