@@ -803,28 +803,29 @@ namespace JANOARG.Shared.Data.ChartInfo
         const float HighlightOpacity = 0.65f;
         const float GlowOpacity      = 0.55f;
 
-        // Background luminance above which the field is bright enough to force the
-        // highlight darker. Deliberately well above mid grey so lightening is the
-        // default and darkening only takes over on genuinely pale charts.
-        const float ContrastPivot = 0.7f;
+        // Luminance gap between note and background at which the shift reaches full
+        // strength. Below it the shift scales down proportionally.
+        const float ContrastDeltaRange = 0.5f;
 
-        // +1 on a black field, 0 at the pivot, -1 on a white one. Charts run on both -
-        // 13 of 38 have a background brighter than 0.5 luminance - so the highlight has
-        // to move away from whatever is behind it rather than toward a fixed colour.
-        // Each side is normalised against its own range so both reach full strength.
-        // Signed and continuous on purpose: backgrounds are storyboardable, and a hard
-        // threshold would pop as one animated across the pivot.
-        static float ContrastDirection(Color background)
+        static float Luminance(Color color)
         {
-            float luminance = background.r * 0.2126f + background.g * 0.7152f + background.b * 0.0722f;
-            float delta     = ContrastPivot - luminance;
+            return color.r * 0.2126f + color.g * 0.7152f + color.b * 0.0722f;
+        }
 
-            return Mathf.Clamp(delta / (delta >= 0 ? ContrastPivot : 1 - ContrastPivot), -1, 1);
+        // Signed by how the note already sits against its background: a note brighter
+        // than the field pushes brighter still, a darker one pushes darker. That extends
+        // the contrast the chart author already chose instead of imposing a direction,
+        // and it works on both the dark and light backgrounds in the library.
+        // Continuous on purpose - both note and background colours are storyboardable,
+        // and a hard threshold would pop as either animated across the crossover.
+        static float ContrastDirection(Color baseColor, Color background)
+        {
+            return Mathf.Clamp((Luminance(baseColor) - Luminance(background)) / ContrastDeltaRange, -1, 1);
         }
 
         public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor, Color background)
         {
-            float direction = ContrastDirection(background);
+            float direction = ContrastDirection(baseColor, background);
             Color target    = direction >= 0 ? Color.white : Color.black;
             float weight    = Mathf.Abs(direction);
 
