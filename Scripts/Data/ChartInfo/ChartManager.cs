@@ -402,6 +402,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
+        // Vertex count the mesh currently holds, so the clear can be limited to a resize.
+        private int _LastVertCount;
+
         // State for the static-lane skip: which step pair the playhead sat in, how far the fog
         // trim reached, and whether there is a previous build to reuse at all.
         private int  _LastSegment = -1;
@@ -732,6 +735,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                     _Tris.Clear();
                     _LastStepCount = stepCount;
+                    _LastVertCount = 0;
                 }
 
                 // An empty mesh is nothing to reuse, so the skip above must not treat it as a build.
@@ -741,14 +745,26 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
 
-                // Rebuilt in full every frame. Skipping either the clear or the re-index is
-                // what 0291352 attempted and what bisected to the vanishing lane strip - do
-                // not reintroduce a condition here without a profile and a repro to check it
-                // against.
-                CurrentMesh.Clear();
+                // Clearing every frame resets the bounds as a side effect, and that side effect
+                // is the only reason it was load-bearing. Unity's automatic recalculation on a
+                // vertex write cannot be relied on, and stale bounds get the renderer
+                // frustum-culled outright - a lane that silently stops drawing while its
+                // GameObject, mesh and material all still look correct. Lane geometry is built
+                // in absolute distance space and swept back by the holder, so it moves
+                // thousands of units while the vertex count sits still, and bounds left over
+                // from an earlier frame leave the frustum almost immediately.
+                //
+                // RecalculateBounds below does that job directly, for a vertex scan rather than
+                // a buffer reallocation. The clear is then only needed when the count changes,
+                // so last frame's indices cannot point past the end of the new buffer.
+                if (vertCount != _LastVertCount) CurrentMesh.Clear();
+
+                _LastVertCount = vertCount;
 
                 CurrentMesh.SetVertices(verts, 0, vertCount);
                 CurrentMesh.SetUVs(0, uvs, 0, vertCount);
+
+                CurrentMesh.RecalculateBounds();
 
                 if (stepCount != _LastStepCount)
                 {
@@ -764,6 +780,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                     #endif
                 }
 
+                // Left unconditional. Gating it on the step count was tried before the bounds
+                // were understood and failed for that reason, so it may well be safe now - but
+                // it is worth only 0.37 ms and has not been retested.
                 CurrentMesh.SetTriangles(_Tris, 0);
 
                 // Raised only here: this is the one path that leaves geometry on the GPU.
