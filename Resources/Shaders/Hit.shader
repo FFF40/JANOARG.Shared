@@ -52,7 +52,13 @@ Shader "JANOARG/Hit/Default"
             {
                 // sample the texture
                 fixed4 col = tex2D(_MainTex, i.uv) * _Color;
-                col.a *= min(max(i.fogCoord.x, 0) * 1.2, 1);
+                // fogCoord only exists in the fog-enabled variants; multi_compile_fog
+                // also generates FOG_OFF, where UNITY_FOG_COORDS declares nothing.
+                float fade = 1;
+                #if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
+                    fade = min(max(i.fogCoord.x, 0) * 1.2, 1);
+                #endif
+                col.a *= fade;
                 return col;
             }
             ENDCG

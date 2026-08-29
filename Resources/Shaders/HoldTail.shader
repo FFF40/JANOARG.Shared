@@ -53,16 +53,13 @@ Shader "JANOARG/Hold Tail/Default"
             {
                 // sample the texture
                 fixed4 col = tex2D(_MainTex, i.uv) * _Color;
-
-                // The tail fades with distance by reusing the fog coordinate. UNITY_FOG_COORDS
-                // only declares fogCoord when a fog keyword is set, and multi_compile_fog also
-                // builds a no-fog variant where it expands to nothing — so reading it here has
-                // to be guarded the same way the declaration is. Without fog there is nothing
-                // to fade into, so the tail stays at full alpha.
+                // fogCoord only exists in the fog-enabled variants; multi_compile_fog
+                // also generates FOG_OFF, where UNITY_FOG_COORDS declares nothing.
+                float fade = 1;
                 #if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
-                    col.a *= min(max(i.fogCoord.x, 0), 1);
+                    fade = min(max(i.fogCoord.x, 0), 1);
                 #endif
-
+                col.a *= fade;
                 return col;
             }
             ENDCG
