@@ -803,16 +803,23 @@ namespace JANOARG.Shared.Data.ChartInfo
         const float HighlightOpacity = 0.65f;
         const float GlowOpacity      = 0.55f;
 
-        // +1 on a black field, 0 at mid grey, -1 on a white one. Charts run on both -
+        // Background luminance above which the field is bright enough to force the
+        // highlight darker. Deliberately well above mid grey so lightening is the
+        // default and darkening only takes over on genuinely pale charts.
+        const float ContrastPivot = 0.7f;
+
+        // +1 on a black field, 0 at the pivot, -1 on a white one. Charts run on both -
         // 13 of 38 have a background brighter than 0.5 luminance - so the highlight has
         // to move away from whatever is behind it rather than toward a fixed colour.
+        // Each side is normalised against its own range so both reach full strength.
         // Signed and continuous on purpose: backgrounds are storyboardable, and a hard
-        // threshold would pop as one animated across mid grey.
+        // threshold would pop as one animated across the pivot.
         static float ContrastDirection(Color background)
         {
             float luminance = background.r * 0.2126f + background.g * 0.7152f + background.b * 0.0722f;
+            float delta     = ContrastPivot - luminance;
 
-            return Mathf.Clamp(1 - luminance * 2, -1, 1);
+            return Mathf.Clamp(delta / (delta >= 0 ? ContrastPivot : 1 - ContrastPivot), -1, 1);
         }
 
         public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor, Color background)
