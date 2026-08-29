@@ -795,13 +795,25 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public static class InternalChartTool
     {
+        // How far the highlight and glow are pushed toward white. Lerping toward white
+        // raises value and lowers saturation in one step, which is how emissive things
+        // read as hotter - and because it never moves hue, it cannot blur the
+        // Normal/Catch distinction the way a hue skew would. It no-ops on notes that
+        // are already white, which is most of them; the additive glow carries those.
+        const float HighlightWhiteLift = 0.25f;
+        const float GlowWhiteLift      = 0.45f;
+
+        // Under the additive Highlight shader, alpha is intensity rather than opacity.
+        const float HighlightIntensity = 0.5f;
+        const float GlowIntensity      = 0.4f;
+
         public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor)
         {
+            Color highlight = Color.Lerp(baseColor, Color.white, HighlightWhiteLift);
+            highlight.a = baseColor.a * HighlightIntensity;
 
-            Color highlight = baseColor;
-            highlight.a *= 0.5f;
-            Color glow = baseColor;
-            glow.a *= 0.4f;
+            Color glow = Color.Lerp(baseColor, Color.white, GlowWhiteLift);
+            glow.a = baseColor.a * GlowIntensity;
 
             return (highlight, glow);
         }
