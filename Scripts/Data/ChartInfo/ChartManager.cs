@@ -569,6 +569,18 @@ namespace JANOARG.Shared.Data.ChartInfo
                     lastStep--;
             }
 
+            // Counted before the skip below is decided, which needs it: the count is part of what
+            // makes a previous build reusable.
+            for (var a = 0; a <= lastStep; a++)
+            {
+                LaneStep step = Steps[a].CurrentStep;
+
+                stepCount += float.IsNaN(offset)
+                    ? 1 : Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
+
+                offset = Steps[a].Offset;
+            }
+
             // Ported from the Client's static-lane skip (LanePlayer.UpdateMesh). Segments ahead
             // of the playhead already interpolate at progress 0, so they emit their own step's
             // values and don't depend on time — only the segment containing the playhead moves.
@@ -586,6 +598,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 && segment >= 1
                 && segment == _LastSegment
                 && lastStep == _LastBuiltStep
+                // Tessellation density tracks the playhead inside the segment - the count reads
+                // step offsets rather than distances, so zero speed doesn't hold it still. The
+                // mesh on the GPU is only the right one at the count that wrote it.
+                && stepCount == _LastStepCount
                 && Steps[segment - 1].CurrentStep.Speed == 0f
                 && Steps[segment].CurrentStep.Speed == 0f
                 && Steps[segment - 1].CurrentStep.StartPointPosition == Steps[segment].CurrentStep.StartPointPosition
@@ -593,16 +609,6 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             _LastSegment   = segment;
             _LastBuiltStep = lastStep;
-
-            for (var a = 0; a <= lastStep; a++)
-            {
-                LaneStep step = Steps[a].CurrentStep;
-
-                stepCount += float.IsNaN(offset)
-                    ? 1 : Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
-
-                offset = Steps[a].Offset;
-            }
 
             var index = 0;
             int vertCount = stepCount * 2;
@@ -714,8 +720,6 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (float.IsNaN(CurrentDistance) && Steps.Count > 0)
                 CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
 
-            _HasBuiltMesh = true;
-
             sr_Verts.End();
             sr_MeshUpload.Begin();
 
@@ -733,6 +737,9 @@ namespace JANOARG.Shared.Data.ChartInfo
                     _LastStepCount = stepCount;
                     _LastVertCount = 0;
                 }
+
+                // An empty mesh is nothing to reuse, so the skip above must not treat it as a build.
+                _HasBuiltMesh = false;
             }
             else if (!geometryStatic)
             {
@@ -771,6 +778,9 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 if (trisChanged)
                     CurrentMesh.SetTriangles(_Tris, 0);
+
+                // Raised only here: this is the one path that leaves geometry on the GPU.
+                _HasBuiltMesh = true;
             }
 
             sr_MeshUpload.End();
