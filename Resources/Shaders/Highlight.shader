@@ -51,17 +51,20 @@ Shader "JANOARG/Highlight/Default"
                 return o;
             }
 
-            // The fog coordinate is the project's spawn fade: notes ramp in over it as
-            // they enter the far end of the lane. The highlight has to use the same ramp
-            // or it pops in while the note it belongs to fades. Matched to HoldTail's
-            // curve rather than Hit's 1.2x, so highlight and note fade in together.
+            // The fog coordinate is the project's lane fade: linear 0-200, matching the
+            // 200 unit cull distance in LanePlayer, so it ramps across the whole visible
+            // lane rather than only at spawn. Without it the highlight pops in while the
+            // note it belongs to fades.
+            // The 1.2x is deliberate and preserved from the original Hit shader: it puts
+            // the highlight at full opacity within z <= 33 while the note carries on
+            // ramping, so the cue stays stronger than the note it marks.
             fixed4 frag (v2f i) : SV_Target
             {
                 fixed4 col = tex2D(_MainTex, i.uv) * _Color;
 
                 float fade = 1;
                 #if defined(FOG_LINEAR) || defined(FOG_EXP) || defined(FOG_EXP2)
-                    fade = min(max(i.fogCoord.x, 0), 1);
+                    fade = min(max(i.fogCoord.x, 0) * 1.2, 1);
                 #endif
                 col.a *= fade;
 
