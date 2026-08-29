@@ -795,34 +795,36 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public static class InternalChartTool
     {
-        // A light touch on purpose: the highlight has to still read as the colour of
-        // the note it is carrying, so pull saturation down slightly rather than washing
-        // toward white. Luminance is preserved, so this cannot blow out on light
-        // backgrounds the way a brightness lift does, and it never moves hue, so it
-        // cannot blur the Normal/Catch distinction the way a hue skew would.
-        const float HighlightDesaturation = 0.12f;
-        const float GlowDesaturation      = 0.20f;
+        // How far the highlight and glow are pushed away from the background. Kept low
+        // so the cue still reads as the colour of the note it is carrying.
+        const float HighlightContrastShift = 0.15f;
+        const float GlowContrastShift      = 0.25f;
 
-        const float HighlightOpacity = 0.5f;
-        const float GlowOpacity      = 0.4f;
+        const float HighlightOpacity = 0.65f;
+        const float GlowOpacity      = 0.55f;
 
-        static Color Desaturate(Color color, float amount)
+        // +1 on a black field, 0 at mid grey, -1 on a white one. Charts run on both -
+        // 13 of 38 have a background brighter than 0.5 luminance - so the highlight has
+        // to move away from whatever is behind it rather than toward a fixed colour.
+        // Signed and continuous on purpose: backgrounds are storyboardable, and a hard
+        // threshold would pop as one animated across mid grey.
+        static float ContrastDirection(Color background)
         {
-            float grey = color.r * 0.2126f + color.g * 0.7152f + color.b * 0.0722f;
+            float luminance = background.r * 0.2126f + background.g * 0.7152f + background.b * 0.0722f;
 
-            return new Color(
-                Mathf.Lerp(color.r, grey, amount),
-                Mathf.Lerp(color.g, grey, amount),
-                Mathf.Lerp(color.b, grey, amount),
-                color.a);
+            return Mathf.Clamp(1 - luminance * 2, -1, 1);
         }
 
-        public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor)
+        public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor, Color background)
         {
-            Color highlight = Desaturate(baseColor, HighlightDesaturation);
+            float direction = ContrastDirection(background);
+            Color target    = direction >= 0 ? Color.white : Color.black;
+            float weight    = Mathf.Abs(direction);
+
+            Color highlight = Color.Lerp(baseColor, target, weight * HighlightContrastShift);
             highlight.a = baseColor.a * HighlightOpacity;
 
-            Color glow = Desaturate(baseColor, GlowDesaturation);
+            Color glow = Color.Lerp(baseColor, target, weight * GlowContrastShift);
             glow.a = baseColor.a * GlowOpacity;
 
             return (highlight, glow);
