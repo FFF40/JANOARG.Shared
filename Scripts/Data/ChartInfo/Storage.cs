@@ -96,7 +96,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 if (values.ContainsKey(key)) 
                 {
                     if (values[key] is object[]) return ((object[])values[key]).OfType<T>().ToArray();
-                    return (T[])values[key];
+                    return ((T[])values[key]).ToArray();
                 }
                 else return fallback;
             }
