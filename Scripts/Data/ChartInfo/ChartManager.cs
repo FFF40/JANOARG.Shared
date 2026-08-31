@@ -32,7 +32,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public Dictionary<ulong, LaneGroupManager> Groups         = new();
         public List<LaneManager>                    Lanes          = new();
-        public PalleteManager                       PalleteManager = new();
+        public PalleteManager                       PalleteManager;
         public CameraController                     Camera;
 
         public float CurrentSpeed;
