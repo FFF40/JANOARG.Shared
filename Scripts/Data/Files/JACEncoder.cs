@@ -72,8 +72,6 @@ Charter: {chart.CharterName}{InsertAltCharter()}
 Level: {chart.DifficultyLevel}
 Constant: {chart.ChartConstant.ToString(CultureInfo.InvariantCulture)}
 
-HighestUUID: {EncodeUuid(chart.HighestUuid)}
-
 [CAMERA]
 Pivot: {EncodeVector(chart.Camera.CameraPivot)}
 Rotation: {EncodeVector(chart.Camera.CameraRotation)}
