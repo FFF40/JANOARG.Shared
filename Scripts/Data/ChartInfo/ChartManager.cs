@@ -61,7 +61,6 @@ namespace JANOARG.Shared.Data.ChartInfo
             PalleteManager = new PalleteManager(this);
             CurrentChart = chart;
             CurrentSpeed = speed;
-            HighestUuid = chart.HighestUuid > 0 ? chart.HighestUuid : SeedUuid();
             Update(time, pos);
 
             ulong SeedUuid()
@@ -98,9 +97,6 @@ namespace JANOARG.Shared.Data.ChartInfo
             HitObjectsRemaining[0] = HitObjectsRemaining[1] = 0;
             FlicksRemaining = 0;
             ActiveLaneCount = ActiveHitCount = ActiveLaneVerts = ActiveLaneTris = 0;
-
-            if (CurrentChart.HighestUuid != HighestUuid)
-                CurrentChart.HighestUuid = HighestUuid;
 
             sr_Groups.Begin();
 
