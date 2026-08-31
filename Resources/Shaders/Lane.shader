@@ -1,5 +1,5 @@
 
-Shader "JANOARG/Styles/Default - Lane"
+Shader "JANOARG/Lane/Default"
 {
     Properties
     {

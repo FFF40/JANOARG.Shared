@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
@@ -32,13 +33,21 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Dictionary<string, LaneGroupManager> Groups         = new();
         public List<LaneManager>                    Lanes          = new();
         public HitMeshManager                       HitMeshManager = new();
-        public PalleteManager                       PalleteManager;
+        public PalleteManager                       PalleteManager = new();
         public CameraController                     Camera;
 
         public float CurrentSpeed;
         public float CurrentTime;
-        public int[] HitObjectsRemaining;
+        public int[] HitObjectsRemaining = new int[2];
         public int   FlicksRemaining;
+
+        private readonly List<string> _GroupKeyScratch = new();
+
+        // Matches the granularity the Client instruments LanePlayer/PlayerScreen at, so the
+        // two profiles can be read against each other.
+        static readonly ProfilerMarker sr_Groups    = new("ChartManager: Groups");
+        static readonly ProfilerMarker sr_GroupPos  = new("ChartManager: Group Positions");
+        static readonly ProfilerMarker sr_Lanes     = new("ChartManager: Lanes");
 
         public int ActiveLaneCount;
         public int ActiveHitCount;
@@ -76,47 +85,106 @@ namespace JANOARG.Shared.Data.ChartInfo
             }
         }
 
-        public void Update(float time, float pos)
+        /// <param name="activeMask">
+        /// Optional per-lane flags: false skips that lane's update entirely. Passing null
+        /// updates every lane, which is the original behaviour.
+        /// </param>
+        public void Update(float time, float pos, IReadOnlyList<bool> activeMask = null)
         {
             PalleteManager.Update(CurrentChart.Palette, pos);
             Camera = (CameraController)CurrentChart.Camera.GetStoryboardableObject(pos);
-            HitObjectsRemaining = new[] { 0, 0 };
+
+            // Reset in place — callers compare against the previous frame's values by copying
+            // the reference out (PlayerView), so the array identity staying stable is fine.
+            HitObjectsRemaining[0] = HitObjectsRemaining[1] = 0;
             FlicksRemaining = 0;
             ActiveLaneCount = ActiveHitCount = ActiveLaneVerts = ActiveLaneTris = 0;
 
             if (CurrentChart.HighestUuid != HighestUuid)
                 CurrentChart.HighestUuid = HighestUuid;
-            
+
+            sr_Groups.Begin();
+
             for (var a = 0; a < CurrentChart.Groups.Count; a++)
             {
-                var group = (LaneGroup)CurrentChart.Groups[a]
-                    .GetStoryboardableObject(pos);
+                LaneGroup source = CurrentChart.Groups[a];
 
-                if (Groups.ContainsKey(group.Name))
-                    Groups[group.Name]
-                        .Update(group, pos, this);
-                else Groups.Add(group.Name, new LaneGroupManager(group, pos, this));
+                // Name isn't storyboarded, so the key is available without evaluating first.
+                if (Groups.TryGetValue(source.Name, out LaneGroupManager groupManager))
+                {
+                    if (SourcesChanged || groupManager.CurrentGroup == null)
+                        groupManager.CurrentGroup = (LaneGroup)source.GetStoryboardableObject(pos);
+                    else if (source.Storyboard.Timestamps.Count > 0)
+                        source.UpdateStoryboardObject(pos, groupManager.CurrentGroup);
 
-                Groups[group.Name].IsTouched = true;
+                    groupManager.Update(groupManager.CurrentGroup, pos, this);
+                }
+                else
+                {
+                    var group = (LaneGroup)source.GetStoryboardableObject(pos);
+
+                    Groups.Add(group.Name, groupManager = new LaneGroupManager(group, pos, this));
+                }
+
+                groupManager.IsTouched = true;
             }
 
-            foreach (KeyValuePair<string, LaneGroupManager> pair in new Dictionary<string, LaneGroupManager>(Groups))
-                if (pair.Value.IsDirty)
-                    pair.Value.UpdatePosition(this);
-                else if (!pair.Value.IsTouched)
-                    Groups.Remove(pair.Key);
+            sr_Groups.End();
+            sr_GroupPos.Begin();
+
+            // Snapshot the keys (the loop removes from Groups) into a reusable list rather than
+            // cloning the whole dictionary every frame.
+            _GroupKeyScratch.Clear();
+
+            foreach (string key in Groups.Keys)
+                _GroupKeyScratch.Add(key);
+
+            foreach (string key in _GroupKeyScratch)
+            {
+                LaneGroupManager group = Groups[key];
+
+                if (group.IsDirty)
+                    group.UpdatePosition(this);
+                else if (!group.IsTouched)
+                    Groups.Remove(key);
                 else
-                    pair.Value.IsTouched = false;
+                    group.IsTouched = false;
+            }
+
+            sr_GroupPos.End();
+            sr_Lanes.Begin();
 
             for (var a = 0; a < CurrentChart.Lanes.Count; a++)
             {
-                var original = CurrentChart.Lanes[a];
-                var current = (Lane)original.GetStoryboardableObject(pos);
+                // Out-of-range is treated as active so a stale mask can never blank the view.
+                bool active = activeMask == null || a >= activeMask.Count || activeMask[a];
 
-                if (Lanes.Count <= a)
-                    Lanes.Add(new LaneManager(original, current, time, pos, this));
-                else
-                    Lanes[a].Update(original, current, time, pos, this);
+                if (Lanes.Count <= a) Lanes.Add(new LaneManager());
+
+                LaneManager manager = Lanes[a];
+
+                if (!active)
+                {
+                    // Its cached step distances and mesh go stale while skipped, so require a
+                    // rebuild rather than a diff when it comes back.
+                    if (manager.IsActive) manager.NeedsFullRebuild = true;
+
+                    manager.IsActive = false;
+                    continue;
+                }
+
+                var original = CurrentChart.Lanes[a];
+
+                // Deliberately inside the active branch: evaluating the storyboard at all is a
+                // real part of the saving, not just the mesh rebuild below it.
+                // NeedsFullRebuild is read here because manager.Update clears it.
+                if (SourcesChanged || manager.NeedsFullRebuild || manager.Current == null)
+                    manager.Current = (Lane)original.GetStoryboardableObject(pos);
+                else if (original.Storyboard.Timestamps.Count > 0)
+                    original.UpdateStoryboardObject(pos, manager.Current);
+
+                manager.IsActive = true;
+                manager.Update(original, manager.Current, time, pos, this);
             }
 
             while (Lanes.Count > CurrentChart.Lanes.Count)
@@ -126,15 +194,24 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Lanes.RemoveAt(CurrentChart.Lanes.Count);
             }
 
-            HitMeshManager.Cleanup();
+            sr_Lanes.End();
+
+            SourcesChanged = false;
         }
+
+        /// <summary>
+        /// Storyboarded values are written into instances that persist across frames, so the
+        /// non-storyboarded fields alongside them are only as current as the last clone.
+        /// Callers must raise this whenever the chart data changes.
+        /// </summary>
+        public void MarkSourcesChanged() => SourcesChanged = true;
+
+        public bool SourcesChanged { get; private set; } = true;
 
         public void Dispose()
         {
             foreach (LaneManager lane in Lanes)
                 lane.Dispose();
-
-            HitMeshManager.Dispose();
         }
     }
 
@@ -214,9 +291,9 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             // Debug.Log(style.LaneMaterial);
 
-            if (BaseLaneMaterial?.name != style.LaneMaterial) LaneMaterial = new Material(BaseLaneMaterial = Resources.Load<Material>("Materials/Lane/" + style.LaneMaterial));
+            if (BaseLaneMaterial?.name != style.LaneMaterial) LaneMaterial = new Material(BaseLaneMaterial = InternalChartTool.LoadStyleMaterial("Lane", style.LaneMaterial));
 
-            if (BaseJudgeMaterial?.name != style.JudgeMaterial) JudgeMaterial = new Material(BaseJudgeMaterial = Resources.Load<Material>("Materials/Judge/" + style.JudgeMaterial));
+            if (BaseJudgeMaterial?.name != style.JudgeMaterial) JudgeMaterial = new Material(BaseJudgeMaterial = InternalChartTool.LoadStyleMaterial("Judge", style.JudgeMaterial));
 
             MaterialQueueUtility.NormalizeTransparentQueue(LaneMaterial);
             MaterialQueueUtility.NormalizeTransparentQueue(JudgeMaterial);
@@ -259,20 +336,20 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             if (!BaseMainMaterial || BaseMainMaterial.name != style.MainMaterial)
             {
-                NormalMaterial = new Material(BaseMainMaterial = Resources.Load<Material>("Materials/Hit/" + style.MainMaterial));
+                NormalMaterial = new Material(BaseMainMaterial = InternalChartTool.LoadStyleMaterial("Hit", style.MainMaterial));
                 CatchMaterial = new Material(BaseMainMaterial);
             }
 
             if (!BaseHighlightMaterial || BaseHighlightMaterial.name != style.MainMaterial)
             {
-                NormalHighlightMaterial = new Material(BaseHighlightMaterial = Resources.Load<Material>("Materials/Highlight/" + style.MainMaterial));
+                NormalHighlightMaterial = new Material(BaseHighlightMaterial = InternalChartTool.LoadStyleMaterial("Highlight", style.MainMaterial));
                 NormalHighlightGlowMaterial = new Material(BaseHighlightMaterial);
                 CatchHighlightMaterial = new Material(BaseHighlightMaterial);
                 CatchHighlightGlowMaterial = new Material(BaseHighlightMaterial);
             }
 
             if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 
-                HoldTailMaterial = new Material(BaseHoldTailMaterial = Resources.Load<Material>("Materials/Hold/" + style.HoldTailMaterial));
+                HoldTailMaterial = new Material(BaseHoldTailMaterial = InternalChartTool.LoadStyleMaterial("Hold", style.HoldTailMaterial));
 
             MaterialQueueUtility.NormalizeTransparentQueue(NormalMaterial);
             MaterialQueueUtility.NormalizeTransparentQueue(CatchMaterial);
@@ -376,7 +453,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Lane                   Current;
         public List<LaneStepManager>  Steps       = new();
         public List<HitObjectManager> Objects     = new();
-        public Mesh                   CurrentMesh = new();
+        public Mesh                   CurrentMesh = NewDynamicMesh();
 
         public float CurrentSpeed;
         public float CurrentDistance;
@@ -392,6 +469,74 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float _LastStepCount;
 
+        // Vertex count the mesh currently holds, so the clear can be limited to a resize.
+        private int _LastVertCount;
+
+        // State for the static-lane skip: which step pair the playhead sat in, how far the fog
+        // trim reached, and whether there is a previous build to reuse at all.
+        private int  _LastSegment = -1;
+        private int  _LastBuiltStep = -1;
+        private bool _HasBuiltMesh;
+
+        /// <summary>
+        /// How far past the current position geometry is still worth building. Linear fog in
+        /// the chart scene is opaque at 200 units; this leaves margin. HitObjectManager uses
+        /// the same budget to decide whether a hit object is in range.
+        /// </summary>
+        public const float VisibleDistance = 250f;
+
+        static readonly ProfilerMarker sr_Steps      = new("Lane Update: Step Loop");
+        static readonly ProfilerMarker sr_Verts      = new("Lane Update: Vertex Build");
+        static readonly ProfilerMarker sr_MeshUpload = new("Lane Update: Mesh Upload");
+        static readonly ProfilerMarker sr_HitObjects = new("Lane Update: Hit Objects");
+
+        // Reused across frames so a per-frame mesh rebuild allocates nothing. Both grow to a
+        // high-water mark and are only ever read up to the current frame's vertex count, so
+        // the tail beyond it is stale by design — never use .Length in place of that count.
+        private Vector3[] _Verts = Array.Empty<Vector3>();
+        private Vector2[] _Uvs   = Array.Empty<Vector2>();
+
+        // Mirrors what RemakeMesh last wrote, so the unchanged-step-count path can re-set the
+        // triangles without reading Mesh.triangles back (which allocates a fresh copy).
+        // A List rather than an array because SetTriangles reads its Count, which lets the
+        // capacity persist across a changing triangle count instead of reallocating.
+        private readonly List<int> _Tris = new();
+
+        // GetLanePosition runs once per in-range hit object per frame and its result is read
+        // immediately, never retained, so one instance is refilled rather than allocated.
+        private readonly LanePosition _Position = new();
+
+        // Scratch for GetPartOfLane, which runs once per in-range hold note per frame.
+        private readonly List<Vector3> _PartVerts = new();
+        private readonly List<Vector2> _PartUvs   = new();
+        private readonly List<int>     _PartTris  = new();
+
+        /// <summary>True when this lane was updated on the last pass; false when culled.</summary>
+        public bool IsActive = true;
+
+        /// <summary>
+        /// Set when the lane is skipped, so the next update rebuilds distances and mesh from
+        /// scratch instead of diffing against state that stopped tracking time.
+        /// </summary>
+        public bool NeedsFullRebuild;
+
+        /// <summary>
+        /// Lane and hold meshes are rewritten every frame. Marking them dynamic keeps Unity
+        /// from recreating the GPU buffers on each write, which forces the main thread to
+        /// sync against the render thread during render queue extraction.
+        /// </summary>
+        static Mesh NewDynamicMesh()
+        {
+            var mesh = new Mesh();
+
+            mesh.MarkDynamic();
+
+            return mesh;
+        }
+
+        /// <summary>Creates an un-updated lane, for a slot that starts out culled.</summary>
+        public LaneManager() { }
+
         public LaneManager(Lane original, Lane current, float time, float pos, ChartManager main)
         {
             Uuid = original.UUID > 0 ? original.UUID : original.UUID = main.HighestUuid++;
@@ -404,27 +549,59 @@ namespace JANOARG.Shared.Data.ChartInfo
             Current = current;
 
             if (CurrentMesh == null)
-                CurrentMesh = new Mesh();
+                CurrentMesh = NewDynamicMesh();
 
             var stepCount = 0;
             bool force = !Mathf.Approximately(main.CurrentSpeed, CurrentSpeed);
+
+            // A culled lane's update never runs, so it can miss the frame on which
+            // main.SourcesChanged was raised. NeedsFullRebuild covers exactly that gap.
+            bool resync = main.SourcesChanged || NeedsFullRebuild;
+
+            if (NeedsFullRebuild)
+            {
+                // -1 can't match any real step count, so the mesh takes the RemakeMesh path.
+                _LastStepCount = -1;
+                NeedsFullRebuild = false;
+                force = true;
+            }
+
             float offset = float.NaN;
             CurrentSpeed = main.CurrentSpeed;
+
+            sr_Steps.Begin();
 
             for (var a = 0; a < Current.LaneSteps.Count; a++)
             {
                 if (Steps.Count <= a)
                     Steps.Add(new LaneStepManager());
 
-                LaneStep step = (LaneStep)Current.LaneSteps[a].GetStoryboardableObject(pos);
+                LaneStepManager stepManager = Steps[a];
+                LaneStep source = Current.LaneSteps[a];
 
-                if (step.Offset != Steps[a].CurrentStep?.Offset)
+                // Captured before the update below overwrites CurrentStep in place.
+                bool hasPrev = stepManager.CurrentStep != null;
+                BeatPosition prevOffset = hasPrev ? stepManager.CurrentStep.Offset : default;
+                float prevSpeed = hasPrev ? stepManager.CurrentStep.Speed : default;
+
+                if (!hasPrev || resync)
+                    stepManager.CurrentStep = (LaneStep)source.GetStoryboardableObject(pos);
+
+                // With no timestamps every property evaluates to the source's own value, which
+                // the target already holds from its last clone — so the whole evaluation is a
+                // read and a write of the same number, six property types deep.
+                else if (source.Storyboard.Timestamps.Count > 0)
+                    source.UpdateStoryboardObject(pos, stepManager.CurrentStep);
+
+                LaneStep step = stepManager.CurrentStep;
+
+                if (!hasPrev || step.Offset != prevOffset)
                 {
-                    Steps[a].Offset = main.Song.Timing.ToSeconds(step.Offset);
+                    stepManager.Offset = main.Song.Timing.ToSeconds(step.Offset);
                     force = true;
                 }
 
-                if (step.Speed != Steps[a].CurrentStep?.Speed)
+                if (!hasPrev || step.Speed != prevSpeed)
                     force = true;
 
                 if (force)
@@ -433,25 +610,101 @@ namespace JANOARG.Shared.Data.ChartInfo
                     Steps[a].Distance = prev.Distance + CurrentSpeed * step.Speed * (Steps[a].Offset - prev.Offset);
                 }
 
-                Steps[a].CurrentStep = step;
+            }
 
-                stepCount += float.IsNaN(offset) 
+            while (Steps.Count > Current.LaneSteps.Count)
+                Steps.RemoveAt(Current.LaneSteps.Count);
+
+            sr_Steps.End();
+            sr_Verts.Begin();
+
+            // The strip runs from the current time to the lane's last step, which for a long
+            // lane is mostly geometry sitting past the fog's far end (linear fog is opaque at
+            // 200 units) and therefore invisible. Trim a run of steps off the far end.
+            //
+            // Only a contiguous run, and only from the end: Speed may be negative or
+            // storyboarded below zero, so Distance is not guaranteed to rise with step index.
+            // A lane that retreats and re-enters view stops the trim at its first visible
+            // interval, which both keeps that geometry and avoids tearing a hole in the strip.
+            int lastStep = Steps.Count - 1;
+
+            if (Steps.Count >= 2)
+            {
+                float cutoff = GetLanePosition(time, CurrentSpeed).Offset + VisibleDistance;
+
+                while (lastStep >= 1
+                       && Mathf.Min(Steps[lastStep - 1].Distance, Steps[lastStep].Distance) > cutoff)
+                    lastStep--;
+            }
+
+            // Counted before the skip below is decided, which needs it: the count is part of what
+            // makes a previous build reusable.
+            for (var a = 0; a <= lastStep; a++)
+            {
+                LaneStep step = Steps[a].CurrentStep;
+
+                stepCount += float.IsNaN(offset)
                     ? 1 : Mathf.CeilToInt((offset == Steps[a].Offset ? Steps[a].Offset > time ? 1 : 0 : Mathf.Clamp01((time - Steps[a].Offset) / (offset - Steps[a].Offset))) * (step.IsLinear ? 1 : 16));
 
                 offset = Steps[a].Offset;
             }
 
-            while (Steps.Count > Current.LaneSteps.Count) 
-                Steps.RemoveAt(Current.LaneSteps.Count);
+            // Ported from the Client's static-lane skip (LanePlayer.UpdateMesh). Segments ahead
+            // of the playhead already interpolate at progress 0, so they emit their own step's
+            // values and don't depend on time — only the segment containing the playhead moves.
+            // Freeze that one and the whole strip is unchanged.
+            //
+            // Zero speed alone isn't enough here, unlike in the Client: it fixes the segment's
+            // distance, but its lateral position still lerps with progress. Requiring the two
+            // steps to share start and end points makes that lerp constant too.
+            int segment = Steps.Count > 1 ? FindStepIndex(time) : 0;
+
+            bool geometryStatic =
+                !force
+                && _HasBuiltMesh
+                && Steps.Count > 2
+                && segment >= 1
+                && segment == _LastSegment
+                && lastStep == _LastBuiltStep
+                // Tessellation density tracks the playhead inside the segment - the count reads
+                // step offsets rather than distances, so zero speed doesn't hold it still. The
+                // mesh on the GPU is only the right one at the count that wrote it.
+                && stepCount == _LastStepCount
+                && Steps[segment - 1].CurrentStep.Speed == 0f
+                && Steps[segment].CurrentStep.Speed == 0f
+                && Steps[segment - 1].CurrentStep.StartPointPosition == Steps[segment].CurrentStep.StartPointPosition
+                && Steps[segment - 1].CurrentStep.EndPointPosition   == Steps[segment].CurrentStep.EndPointPosition;
+
+            _LastSegment   = segment;
+            _LastBuiltStep = lastStep;
 
             var index = 0;
-            var verts = new Vector3[stepCount * 2];
-            var uvs = new Vector2[stepCount * 2];
-            LaneStepManager next = null;
-            CurrentDistance = float.NaN;
+            int vertCount = stepCount * 2;
 
-            if (verts.Length > 0)
-                for (int a = Steps.Count - 1; a >= 0; a--)
+            if (_Verts.Length < vertCount)
+            {
+                // Doubling, not exact fit: a lane scrolling into view gains steps every frame,
+                // so an exact fit reallocates both arrays on every one of those frames.
+                int capacity = Mathf.Max(vertCount, _Verts.Length * 2);
+
+                _Verts = new Vector3[capacity];
+                _Uvs   = new Vector2[capacity];
+            }
+
+            Vector3[] verts = _Verts;
+            Vector2[] uvs = _Uvs;
+
+            LaneStepManager next = null;
+
+            // Skipped entirely when static: the pooled arrays still hold last frame's vertices,
+            // stepCount is unchanged under the same conditions, and CurrentDistance is constant
+            // — so it must not be reset to NaN here or the fallback below would overwrite it
+            // with the before-the-lane-starts formula.
+            if (!geometryStatic)
+                CurrentDistance = float.NaN;
+
+            if (!geometryStatic && vertCount > 0)
+                for (int a = lastStep; a >= 0; a--)
                 {
                     LaneStepManager curr = Steps[a];
 
@@ -463,7 +716,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                         // Debug.Log(index + "/" + verts.Length + " " + verts[index] + " " + verts[index + 1]);
                         index += 2;
 
-                        if (index >= verts.Length)
+                        if (index >= vertCount)
                         {
                             CurrentDistance = curr.Distance + curr.CurrentStep.Speed * CurrentSpeed * (time - curr.Offset);
 
@@ -492,7 +745,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                             break;
                         }
 
-                        if (index >= verts.Length) break;
+                        if (index >= vertCount) break;
                     }
                     else
                     {
@@ -516,7 +769,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                             index += 2;
 
-                            if (x == p || index >= verts.Length) break;
+                            if (x == p || index >= vertCount) break;
                         }
 
                         if (p > 0)
@@ -526,37 +779,89 @@ namespace JANOARG.Shared.Data.ChartInfo
                             break;
                         }
 
-                        if (index >= verts.Length) break;
+                        if (index >= vertCount) break;
                     }
 
                     next = curr;
                 }
 
-            if (float.IsNaN(CurrentDistance) && Steps.Count > 0) 
+            if (float.IsNaN(CurrentDistance) && Steps.Count > 0)
                 CurrentDistance = Steps[0].Distance + Steps[0].CurrentStep.Speed * CurrentSpeed * (time - Steps[0].Offset);
 
-            for (var a = 0; a < verts.Length; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
+            sr_Verts.End();
+            sr_MeshUpload.Begin();
 
-            if (stepCount != _LastStepCount)
+            // Fewer than two steps produces no triangles, so the mesh draws nothing. Rewriting
+            // it anyway recreates its GPU buffers every frame, and that recreation is what
+            // stalls the main thread during render queue extraction — a lane sitting inside
+            // its cue window but not yet visible was costing more than a lane being drawn.
+            if (stepCount < 2)
             {
-                CurrentMesh.Clear();
-                CurrentMesh.SetVertices(verts);
-                CurrentMesh.SetUVs(0, uvs);
-                RemakeMesh(CurrentMesh, stepCount);
-                _LastStepCount = stepCount;
+                if (stepCount != _LastStepCount)
+                {
+                    CurrentMesh.Clear();
+
+                    _Tris.Clear();
+                    _LastStepCount = stepCount;
+                    _LastVertCount = 0;
+                }
+
+                // An empty mesh is nothing to reuse, so the skip above must not treat it as a build.
+                _HasBuiltMesh = false;
             }
-            else
+            else if (!geometryStatic)
             {
-                int[] tris = CurrentMesh.triangles;
-                CurrentMesh.Clear();
-                CurrentMesh.SetVertices(verts);
-                CurrentMesh.SetUVs(0, uvs);
-                CurrentMesh.SetTriangles(tris, 0);
+                for (var a = 0; a < vertCount; a++) uvs[a] = new Vector2(a % 2, verts[a].z);
+
+                // Clearing every frame resets the bounds as a side effect, and that side effect
+                // is the only reason it was load-bearing. Unity's automatic recalculation on a
+                // vertex write cannot be relied on, and stale bounds get the renderer
+                // frustum-culled outright - a lane that silently stops drawing while its
+                // GameObject, mesh and material all still look correct. Lane geometry is built
+                // in absolute distance space and swept back by the holder, so it moves
+                // thousands of units while the vertex count sits still, and bounds left over
+                // from an earlier frame leave the frustum almost immediately.
+                //
+                // RecalculateBounds below does that job directly, for a vertex scan rather than
+                // a buffer reallocation. The clear is then only needed when the count changes,
+                // so last frame's indices cannot point past the end of the new buffer.
+                if (vertCount != _LastVertCount) CurrentMesh.Clear();
+
+                _LastVertCount = vertCount;
+
+                CurrentMesh.SetVertices(verts, 0, vertCount);
+                CurrentMesh.SetUVs(0, uvs, 0, vertCount);
+
+                CurrentMesh.RecalculateBounds();
+
+                if (stepCount != _LastStepCount)
+                {
+                    FillTriangles(_Tris, stepCount);
+                    _LastStepCount = stepCount;
+
+                    #if UNITY_EDITOR
+                    // Named so the profiler's mesh rows are identifiable instead of <No Name>.
+                    // Only on rebuild, so the string never lands in the per-frame path.
+                    CurrentMesh.name = string.IsNullOrEmpty(Current.Name)
+                        ? $"Lane @{(Steps.Count > 0 ? Steps[0].Offset : 0):0.###}s ({vertCount}v)"
+                        : $"Lane {Current.Name} ({vertCount}v)";
+                    #endif
+                }
+
+                // Left unconditional. Gating it on the step count was tried before the bounds
+                // were understood and failed for that reason, so it may well be safe now - but
+                // it is worth only 0.37 ms and has not been retested.
+                CurrentMesh.SetTriangles(_Tris, 0);
+
+                // Raised only here: this is the one path that leaves geometry on the GPU.
+                _HasBuiltMesh = true;
             }
+
+            sr_MeshUpload.End();
 
             main.ActiveLaneCount++;
-            main.ActiveLaneVerts += verts.Length;
-            main.ActiveLaneTris += CurrentMesh.triangles.Length;
+            main.ActiveLaneVerts += vertCount;
+            main.ActiveLaneTris += _Tris.Count;
 
             FinalPosition = Current.Position;
             FinalRotation = Quaternion.Euler(Current.Rotation);
@@ -572,28 +877,56 @@ namespace JANOARG.Shared.Data.ChartInfo
 
 
 
+            sr_HitObjects.Begin();
+
             for (var a = 0; a < Current.Objects.Count; a++)
             {
                 var originalHit = Original.Objects[a];
-                var currentHit = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
 
-                if (Objects.Count <= a) Objects.Add(
-                    new HitObjectManager(originalHit, currentHit, time, this, main)
-                );
-                else
-                    Objects[a].Update(originalHit, currentHit, time, this, main);
+                if (Objects.Count <= a)
+                {
+                    var currentHit = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
+
+                    Objects.Add(new HitObjectManager(originalHit, currentHit, time, this, main));
+
+                    continue;
+                }
+
+                HitObjectManager hitManager = Objects[a];
+
+                if (resync || hitManager.Current == null)
+                    hitManager.Current = (HitObject)Current.Objects[a].GetStoryboardableObject(pos);
+                else if (Current.Objects[a].Storyboard.Timestamps.Count > 0)
+                    Current.Objects[a].UpdateStoryboardObject(pos, hitManager.Current);
+
+                hitManager.Update(originalHit, hitManager.Current, time, this, main);
             }
 
             while (Objects.Count > Current.Objects.Count)
             {
+                Objects[Current.Objects.Count].Dispose();
                 Objects.RemoveAt(Current.Objects.Count);
             }
+
+            sr_HitObjects.End();
         }
 
         public Mesh GetPartOfLane(float timeStart, float timeEnd, float xPos, float xLength)
+            => GetPartOfLane(timeStart, timeEnd, xPos, xLength, new Mesh());
+
+        /// <summary>
+        /// Fills <paramref name="target"/> with the slice of this lane between the given
+        /// times. Callers that need the slice every frame should keep one mesh and pass it
+        /// back in — creating a Mesh costs native resource registration, which lands in
+        /// Camera.Render rather than anywhere the GC profiler would show it.
+        /// </summary>
+        public Mesh GetPartOfLane(float timeStart, float timeEnd, float xPos, float xLength, Mesh target)
         {
-            List<Vector3> verts = new();
-            List<Vector2> uvs = new();
+            List<Vector3> verts = _PartVerts;
+            List<Vector2> uvs = _PartUvs;
+
+            verts.Clear();
+            uvs.Clear();
 
             for (int a = Steps.Count - 1; a >= 1; a--)
             {
@@ -677,12 +1010,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             for (var a = 0; a < verts.Count; a++) uvs.Add(new Vector2(a % 2, verts[a].z));
 
-            Mesh mesh = new();
-            mesh.SetVertices(verts);
-            mesh.SetUVs(0, uvs);
-            RemakeMesh(mesh, verts.Count / 2);
+            target.Clear();
+            target.SetVertices(verts);
+            target.SetUVs(0, uvs);
 
-            return mesh;
+            FillTriangles(_PartTris, verts.Count / 2);
+            target.SetTriangles(_PartTris, 0);
+
+            return target;
         }
 
         public LanePosition GetLanePosition(float sec, float speed = 1f)
@@ -696,12 +1031,11 @@ namespace JANOARG.Shared.Data.ChartInfo
                 
                 var firstStep = Steps[0];
                 var firstLaneStep = Current.LaneSteps[0];
-                return new LanePosition
-                {
-                    StartPosition = firstLaneStep.StartPointPosition,
-                    EndPosition = firstLaneStep.EndPointPosition,
-                    Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStep.Offset - sec)
-                };
+                _Position.StartPosition = firstLaneStep.StartPointPosition;
+                _Position.EndPosition = firstLaneStep.EndPointPosition;
+                _Position.Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStep.Offset - sec);
+
+                return _Position;
             }
             
             var firstStepOffset = Steps[0].Offset;
@@ -712,12 +1046,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 var firstStep = Steps[0];
                 var firstLaneStep = Current.LaneSteps[0];
-                return new LanePosition
-                {
-                    StartPosition = firstLaneStep.StartPointPosition,
-                    EndPosition = firstLaneStep.EndPointPosition,
-                    Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStepOffset - sec)
-                };
+                _Position.StartPosition = firstLaneStep.StartPointPosition;
+                _Position.EndPosition = firstLaneStep.EndPointPosition;
+                _Position.Offset = firstStep.Distance - firstStep.CurrentStep.Speed * speed * (firstStepOffset - sec);
+
+                return _Position;
             }
             
             // Handle time after last step
@@ -725,12 +1058,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 var lastStep = Steps[stepCount - 1];
                 var lastLaneStep = Current.LaneSteps[stepCount - 1];
-                return new LanePosition
-                {
-                    StartPosition = lastLaneStep.StartPointPosition,
-                    EndPosition = lastLaneStep.EndPointPosition,
-                    Offset = lastStep.Distance + lastStep.CurrentStep.Speed * speed * (sec - lastStepOffset)
-                };
+                _Position.StartPosition = lastLaneStep.StartPointPosition;
+                _Position.EndPosition = lastLaneStep.EndPointPosition;
+                _Position.Offset = lastStep.Distance + lastStep.CurrentStep.Speed * speed * (sec - lastStepOffset);
+
+                return _Position;
             }
             
             // Binary search for the correct step interval
@@ -747,12 +1079,11 @@ namespace JANOARG.Shared.Data.ChartInfo
             
             if (currentStep.IsLinear)
             {
-                return new LanePosition
-                {
-                    StartPosition = Vector2.LerpUnclamped(prevStep.StartPointPosition, currentStep.StartPointPosition, prevToCurrentProgress),
-                    EndPosition = Vector2.LerpUnclamped(prevStep.EndPointPosition, currentStep.EndPointPosition, prevToCurrentProgress),
-                    Offset = offsetValue
-                };
+                _Position.StartPosition = Vector2.LerpUnclamped(prevStep.StartPointPosition, currentStep.StartPointPosition, prevToCurrentProgress);
+                _Position.EndPosition = Vector2.LerpUnclamped(prevStep.EndPointPosition, currentStep.EndPointPosition, prevToCurrentProgress);
+                _Position.Offset = offsetValue;
+
+                return _Position;
             }
             
             // Non-linear interpolation
@@ -761,18 +1092,19 @@ namespace JANOARG.Shared.Data.ChartInfo
             float endEaseX = currentStep.EndEaseX.Get(prevToCurrentProgress);
             float endEaseY = currentStep.EndEaseY.Get(prevToCurrentProgress);
             
-            return new LanePosition
-            {
-                StartPosition = new Vector2(
-                    Mathf.LerpUnclamped(prevStep.StartPointPosition.x, currentStep.StartPointPosition.x, startEaseX),
-                    Mathf.LerpUnclamped(prevStep.StartPointPosition.y, currentStep.StartPointPosition.y, startEaseY)
-                ),
-                EndPosition = new Vector2(
-                    Mathf.LerpUnclamped(prevStep.EndPointPosition.x, currentStep.EndPointPosition.x, endEaseX),
-                    Mathf.LerpUnclamped(prevStep.EndPointPosition.y, currentStep.EndPointPosition.y, endEaseY)
-                ),
-                Offset = offsetValue
-            };
+            _Position.StartPosition = new Vector2(
+                Mathf.LerpUnclamped(prevStep.StartPointPosition.x, currentStep.StartPointPosition.x, startEaseX),
+                Mathf.LerpUnclamped(prevStep.StartPointPosition.y, currentStep.StartPointPosition.y, startEaseY)
+            );
+
+            _Position.EndPosition = new Vector2(
+                Mathf.LerpUnclamped(prevStep.EndPointPosition.x, currentStep.EndPointPosition.x, endEaseX),
+                Mathf.LerpUnclamped(prevStep.EndPointPosition.y, currentStep.EndPointPosition.y, endEaseY)
+            );
+
+            _Position.Offset = offsetValue;
+
+            return _Position;
         }
 
         // Binary search to find the step index - O(log n) instead of O(n)
@@ -803,24 +1135,39 @@ namespace JANOARG.Shared.Data.ChartInfo
         public void Dispose()
         {
             if (CurrentMesh != null) Object.DestroyImmediate(CurrentMesh);
+
+            foreach (HitObjectManager hitObject in Objects)
+                hitObject.Dispose();
         }
 
         public void RemakeMesh(Mesh mesh, int stepCount)
         {
-            var tris = new int[Mathf.Max((stepCount - 1) * 6, 0)];
+            var tris = new List<int>();
+
+            FillTriangles(tris, stepCount);
+            mesh.SetTriangles(tris, 0);
+        }
+
+        /// <summary>
+        /// Rewrites <paramref name="tris"/> as the strip for <paramref name="stepCount"/>.
+        /// Clearing a list keeps its capacity, so a changing step count stops allocating after
+        /// the first few frames — an exact-length array would have to be replaced every time
+        /// the count moved, since SetTriangles consumes the whole array.
+        /// </summary>
+        static void FillTriangles(List<int> tris, int stepCount)
+        {
+            tris.Clear();
 
             for (var a = 0; a < stepCount - 1; a++)
             {
-                tris[a * 6 + 0] = a * 2;
-                tris[a * 6 + 1] = a * 2 + 1;
-                tris[a * 6 + 2] = a * 2 + 2;
+                tris.Add(a * 2);
+                tris.Add(a * 2 + 1);
+                tris.Add(a * 2 + 2);
 
-                tris[a * 6 + 3] = a * 2 + 2;
-                tris[a * 6 + 4] = a * 2 + 1;
-                tris[a * 6 + 5] = a * 2 + 3;
+                tris.Add(a * 2 + 2);
+                tris.Add(a * 2 + 1);
+                tris.Add(a * 2 + 3);
             }
-
-            mesh.SetTriangles(tris, 0);
         }
     }
 
@@ -833,157 +1180,6 @@ namespace JANOARG.Shared.Data.ChartInfo
         public float Distance;
     }
 
-
-    public class HitMeshManager
-    {
-        public Dictionary<float, Mesh> NormalMeshes     = new();
-        public Dictionary<float, int>  NormalMeshCounts = new();
-        public Dictionary<float, Mesh> CatchMeshes      = new();
-        public Dictionary<float, int>  CatchMeshCounts  = new();
-
-        public float Resolution = .001f;
-
-        public void Cleanup()
-        {
-            var list = new List<float>(NormalMeshes.Keys);
-
-            foreach (float key in list)
-                if (!NormalMeshCounts.ContainsKey(key))
-                {
-                    Object.DestroyImmediate(NormalMeshes[key]);
-                    NormalMeshes.Remove(key);
-                }
-
-            list = new List<float>(CatchMeshes.Keys);
-
-            foreach (float key in list)
-                if (!CatchMeshCounts.ContainsKey(key))
-                {
-                    Object.DestroyImmediate(CatchMeshes[key]);
-                    CatchMeshes.Remove(key);
-                }
-
-            NormalMeshCounts.Clear();
-            CatchMeshCounts.Clear();
-        }
-
-        public void Dispose()
-        {
-            foreach (float key in NormalMeshes.Keys) Object.DestroyImmediate(NormalMeshes[key]);
-
-            foreach (float key in CatchMeshes.Keys) Object.DestroyImmediate(CatchMeshes[key]);
-        }
-
-        public Mesh GetMesh(HitObject.HitType type, float size)
-        {
-            size = Mathf.Floor(size / Resolution) * Resolution;
-
-            Dictionary<float, Mesh> meshes = type == HitObject.HitType.Catch ? CatchMeshes : NormalMeshes;
-            Dictionary<float, int> counts = type == HitObject.HitType.Catch ? CatchMeshCounts : NormalMeshCounts;
-
-            if (!meshes.ContainsKey(size)) meshes[size] = MakeMesh(type, size);
-            if (!counts.ContainsKey(size)) counts[size] = 0;
-            counts[size]++;
-
-            return meshes[size];
-        }
-
-        public Mesh MakeMesh(HitObject.HitType type, float size)
-        {
-            Vector3 startPos = Vector3.left * size / 2;
-            Vector3 endPos = Vector3.right * size / 2;
-
-            var mesh = new Mesh();
-            var vertices = new List<Vector3>();
-            var uvs = new List<Vector2>();
-            var tris = new List<int>();
-
-            void AddStep(Vector3 start, Vector3 end, bool addTris = true)
-            {
-                vertices.Add(start);
-                vertices.Add(end);
-                vertices.Add(start);
-                vertices.Add(end);
-
-                uvs.Add(Vector2.zero);
-                uvs.Add(Vector2.zero);
-                uvs.Add(Vector2.zero);
-                uvs.Add(Vector2.zero);
-
-                if (addTris && vertices.Count >= 8)
-                {
-                    tris.Add(vertices.Count - 8);
-                    tris.Add(vertices.Count - 3);
-                    tris.Add(vertices.Count - 7);
-
-                    tris.Add(vertices.Count - 3);
-                    tris.Add(vertices.Count - 8);
-                    tris.Add(vertices.Count - 4);
-                }
-            }
-
-            if (type == HitObject.HitType.Normal)
-            {
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)startPos + Vector3.right * .2f + ofs, (Vector3)endPos - Vector3.right * .2f + ofs);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)startPos + ofs, (Vector3)startPos + Vector3.right * .1f + ofs, ang != 45);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)endPos - Vector3.right * .1f + ofs, (Vector3)endPos + ofs, ang != 45);
-                }
-            }
-            else if (type == HitObject.HitType.Catch)
-            {
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .1f;
-
-                    AddStep((Vector3)startPos + Vector3.right * .1f + ofs, (Vector3)endPos - Vector3.right * .1f + ofs);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)startPos + ofs, (Vector3)startPos + Vector3.right * .1f + ofs, ang != 45);
-                }
-
-                for (float ang = 45; ang <= 405; ang += 90)
-                {
-                    Vector3 ofs = new Vector3(0, Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad))
-                                  * .2f;
-
-                    AddStep((Vector3)endPos - Vector3.right * .1f + ofs, (Vector3)endPos + ofs, ang != 45);
-                }
-            }
-
-            mesh.Clear();
-            mesh.vertices = vertices.ToArray();
-            mesh.uv = uvs.ToArray();
-            mesh.triangles = tris.ToArray();
-            mesh.RecalculateNormals();
-
-            return mesh;
-        }
-    }
 
     public class HitObjectManager
     {
@@ -1000,7 +1196,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Vector3 StartPos;
         public Vector3 EndPos;
 
+        /// <summary>This frame's hold tail, or null when the tail shouldn't be drawn.</summary>
         public Mesh HoldMesh;
+
+        // Kept for the manager's lifetime and refilled in place. HoldMesh points at it when
+        // the tail is showing and is nulled otherwise, so consumers keep their existing check.
+        private Mesh _HoldMeshInstance;
 
         public HitObjectManager(HitObject original, HitObject current, float time, LaneManager lane, ChartManager main)
         {
@@ -1018,12 +1219,9 @@ namespace JANOARG.Shared.Data.ChartInfo
             bool isHoldNote = current.HoldLength > 0;
             TimeEnd = isHoldNote ? main.Song.Timing.ToSeconds(current.Offset + current.HoldLength) : TimeStart;
 
-            // Destroy hold mesh early if it exists
-            if (HoldMesh) 
-            {
-                Object.DestroyImmediate(HoldMesh);
-                HoldMesh = null; // Explicit null assignment for clarity
-            }
+            // Hidden by default; the instance behind it survives so it can be refilled rather
+            // than recreated when the note comes back into range.
+            HoldMesh = null;
 
             // Early return if time is past the end - no need to process further
             if (time > TimeEnd)
@@ -1048,24 +1246,58 @@ namespace JANOARG.Shared.Data.ChartInfo
             EndPos = Vector3.LerpUnclamped(pos.StartPosition, pos.EndPosition, dataPosition + current.Length) + forwardedOffset;
 
             Position = (StartPos + EndPos) * 0.5f; // Multiply by 0.5f is slightly faster than divide by 2
-            Rotation = Quaternion.LookRotation(EndPos - StartPos) * Quaternion.Euler(0, 90, 0);
+
+            // A hit object with zero Length puts a zero-length vector into LookRotation, which
+            // logs an error and returns identity. Guarding it keeps the same result without the
+            // log; Unity's own normalize threshold is 1e-5, so match it rather than test != 0.
+            Vector3 direction = EndPos - StartPos;
+
+            Rotation = direction.sqrMagnitude > 1e-10f
+                ? Quaternion.LookRotation(direction) * Quaternion.Euler(0, 90, 0)
+                : Quaternion.Euler(0, 90, 0);
+
             Length = Vector3.Distance(StartPos, EndPos);
 
             // Cache the distance check result
             bool isInRange = pos.Offset < lane.CurrentDistance + 250;
             
             // Generate hold mesh only if needed
-            HoldMesh = (isInRange && isHoldNote) 
-                ? lane.GetPartOfLane(Mathf.Max(TimeStart, time), TimeEnd, dataPosition, current.Length) 
-                : null;
+            if (isInRange && isHoldNote)
+            {
+                if (!_HoldMeshInstance)
+                {
+                    _HoldMeshInstance = new Mesh();
+                    _HoldMeshInstance.MarkDynamic();
+
+                    #if UNITY_EDITOR
+                    _HoldMeshInstance.name = $"Hold @{TimeStart:0.###}s";
+                    #endif
+                }
+
+                HoldMesh = lane.GetPartOfLane(
+                    Mathf.Max(TimeStart, time), TimeEnd, dataPosition, current.Length, _HoldMeshInstance
+                );
+            }
 
             // Update counters
             if (isInRange) 
                 main.ActiveHitCount++;
             
-            // Use null-conditional operators for cleaner code
-            main.ActiveLaneVerts += HoldMesh?.vertices.Length ?? 0;
-            main.ActiveLaneTris += HoldMesh?.triangles.Length ?? 0;
+            // vertexCount/GetIndexCount read the counts directly; .vertices/.triangles would
+            // each copy the whole buffer out of the mesh just to take a Length.
+            if (HoldMesh)
+            {
+                main.ActiveLaneVerts += HoldMesh.vertexCount;
+                main.ActiveLaneTris += (int)HoldMesh.GetIndexCount(0);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_HoldMeshInstance) Object.DestroyImmediate(_HoldMeshInstance);
+
+            _HoldMeshInstance = null;
+            HoldMesh = null;
         }
     }
 }

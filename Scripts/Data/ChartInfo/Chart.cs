@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
+using JANOARG.Shared.Utils.Animation;
 
 namespace JANOARG.Shared.Data.ChartInfo
 {
@@ -132,7 +133,8 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 Storyboard = Storyboard.SelfReference(),
                 CameraPivot = new Vector3(CameraPivot.x, CameraPivot.y, CameraPivot.z),
-                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z)
+                CameraRotation = new Vector3(CameraRotation.x, CameraRotation.y, CameraRotation.z),
+                PivotDistance = PivotDistance
             };
 
             return clone;
@@ -308,6 +310,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             LaneStyle clone = new()
             {
+                Name = Name,
                 LaneMaterial = LaneMaterial,
                 LaneColorTarget = LaneColorTarget,
                 LaneColor = new Color(LaneColor.r, LaneColor.g, LaneColor.b, LaneColor.a),
@@ -439,6 +442,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             HitStyle clone = new()
             {
+                Name = Name,
                 MainMaterial = MainMaterial,
                 MainColorTarget = MainColorTarget,
                 NormalColor = new Color(NormalColor.r, NormalColor.g, NormalColor.b, NormalColor.a),
@@ -457,7 +461,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class LaneGroup : Storyboardable, IDeepClonable<LaneGroup>, IUuidIdentifiableChartObject
+    public class LaneGroup : DirtyTrackedStoryboardable, IDeepClonable<LaneGroup>, IUuidIdentifiableChartObject
     {
         public ulong UUID { get; set; }
         public string  Name;
@@ -691,6 +695,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             Lane clone = new()
             {
+                Name = Name,
                 Position = new Vector3(Position.x, Position.y, Position.z),
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Group = Group,
@@ -822,6 +827,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             return (highlight, glow);
         }
+
+        public static Material LoadStyleMaterial(string type, string id)
+        {
+            Material mat = Resources.Load<Material>($"Materials/{type}/{id}");
+            if (mat) return mat;
+            mat = Resources.Load<Material>($"Materials/{type}/Default");
+            return mat;
+        }
     }
 
     [System.Serializable]
@@ -834,7 +847,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         public float        Length;
         public float        HoldLength = 0;
         public bool         Flickable;
-        public float        FlickDirection = -1;
+        [ToggleableFloat]
+        public float        FlickDirection = float.NaN;
 
         public bool IsSimultaneous;
 

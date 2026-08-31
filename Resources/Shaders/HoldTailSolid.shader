@@ -1,4 +1,4 @@
-Shader "JANOARG/Hold Tail/Default"
+Shader "JANOARG/Hold Tail/Solid"
 {
     Properties
     {
@@ -7,8 +7,7 @@ Shader "JANOARG/Hold Tail/Default"
     }
     SubShader
     {
-        Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Fade" }
-        ZWrite Off
+        Tags { "IgnoreProjector"="True" "RenderType"="Fade" }
         Cull Off
         Blend SrcAlpha OneMinusSrcAlpha
         LOD 100
@@ -16,6 +15,8 @@ Shader "JANOARG/Hold Tail/Default"
         Pass
         {
             CGPROGRAM
+            // Upgrade NOTE: excluded shader from DX11; has structs without semantics (struct v2f members fogCoord)
+            #pragma exclude_renderers d3d11
             #pragma vertex vert
             #pragma fragment frag
             // make fog work

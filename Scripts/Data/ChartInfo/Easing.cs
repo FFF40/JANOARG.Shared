@@ -1,292 +1,10 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using TMPro;
+using JANOARG.Shared.Utils;
+using JANOARG.Shared.Utils.Animation;
 using UnityEngine;
 
 namespace JANOARG.Shared.Data.ChartInfo
 {
-    [Serializable]
-    public enum EaseMode
-    {
-        In, Out, InOut
-    }
-
-    [Serializable]
-    public enum EaseFunction
-    {
-        Linear,
-        Sine,
-        Quadratic,
-        Cubic,
-        Quartic,
-        Quintic,
-        Exponential,
-        Circle,
-        Back,
-        Elastic,
-        Bounce
-    }
-
-    [Serializable]
-    public class Ease
-    {
-        public Func<float, float> In;
-        public Func<float, float> Out;
-        public Func<float, float> InOut;
-
-        public static float Get(float x, EaseFunction easeFunc, EaseMode mode)
-        {
-            //Ease funcs = sEases[(int)easeFunc];
-            x = x > 1 ? 1 : x;
-            x = x < 0 ? 0 : x;
-    
-            return mode switch
-            {
-                EaseMode.In => sEases[(int)easeFunc].In(x),
-                EaseMode.Out => sEases[(int)easeFunc].Out(x), 
-                _ => sEases[(int)easeFunc].InOut(x)
-            };
-        }
-
-        // We don't need DOTween, guys
-        public static IEnumerator Animate(float duration, Action<float> callback)
-        {
-            for (float a = 0; a < 1; a += Time.deltaTime / duration)
-            {
-                callback(a);
-
-                yield return null;
-            }
-
-            callback(1);
-        }
-
-        public static IEnumerator AnimateText(TMP_Text text, float duration, float xOffset, Action<TMP_CharacterInfo, float> letterCallback)
-        {
-            float minPosition;
-
-            bool finished;
-
-            void f_update(float x)
-            {
-                text.ForceMeshUpdate();
-                finished = true;
-                minPosition = float.NaN;
-
-                foreach (TMP_CharacterInfo charInfo in text.textInfo.characterInfo)
-                {
-                    if (!charInfo.isVisible) continue;
-
-                    if (!float.IsFinite(minPosition)) minPosition = charInfo.vertex_BL.position.x;
-                    float prog = Mathf.Clamp01((x - xOffset * (charInfo.vertex_BL.position.x - minPosition)) / duration);
-                    letterCallback(charInfo, prog);
-                    if (prog < 1) finished = false;
-                }
-
-                var index = 0;
-
-                foreach (TMP_MeshInfo meshInfo in text.textInfo.meshInfo)
-                {
-                    meshInfo.mesh.vertices = meshInfo.vertices;
-                    text.UpdateGeometry(meshInfo.mesh, index);
-                    index++;
-                }
-            }
-
-            float elapsedTime = 0;
-
-            while (true)
-            {
-                f_update(elapsedTime);
-
-                if (finished) break;
-
-                yield return null;
-
-                elapsedTime += Time.deltaTime;
-            }
-        }
-
-        public static Ease[] sEases;
-
-        // We will reduce as much external calls as possible,
-        // given this library is being called ~3000+ times per frame
-        static Ease()
-        {
-            sEases = new Ease[Enum.GetValues(typeof(EaseFunction)).Length];
-
-            sEases[(int)EaseFunction.Linear] = new Ease
-            {
-                In = (x) => x,
-                Out = (x) => x,
-                InOut = (x) => x
-            };
-
-            sEases[(int)EaseFunction.Sine] = new Ease
-            {
-                In = (x) => 1 - Mathf.Cos(x * Mathf.PI / 2),
-                Out = (x) => Mathf.Sin(x * Mathf.PI / 2),
-                InOut = (x) => (1 - Mathf.Cos(x * Mathf.PI)) / 2
-            };
-
-            sEases[(int)EaseFunction.Quadratic] = new Ease
-            {
-                In = (x) => x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
-                    ? 2 * x * x
-                    : 1 - ((-2 * x + 2) * (-2 * x + 2)) / 2
-            };
-
-            sEases[(int)EaseFunction.Cubic] = new Ease
-            {
-                In = (x) => x * x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
-                    ? 4 * x * x * x
-                    : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
-            };
-
-            sEases[(int)EaseFunction.Quartic] = new Ease
-            {
-                In = (x) => x * x * x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
-                    ? 8 * x * x * x * x
-                    : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
-            };
-
-            // For fuck's sake, why do C# not have an exponent operator??
-            // Maybe exponent is not ALU standard
-            sEases[(int)EaseFunction.Quintic] = new Ease
-            {
-                In = (x) => x * x * x * x * x,
-                Out = (x) => 1 - ((1 - x) * (1 - x) * (1 - x) * (1 - x) * (1 - x)),
-                InOut = (x) => x < 0.5f
-                    ? 16 * x * x * x * x * x
-                    : 1 - ((-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2) * (-2 * x + 2)) / 2
-            };
-
-            sEases[(int)EaseFunction.Exponential] = new Ease
-            {
-                In = (x) => x == 0
-                    ? 0
-                    : Mathf.Pow(2, 10 * x - 10) - 0.0009765625f * (1 - x),
-                Out = (x) => Mathf.Approximately(x, 1)
-                    ? 1
-                    : 1 - Mathf.Pow(2, -10 * x) + 0.0009765625f * x,
-                InOut = (x) => x == 0
-                    ? 0
-                    : Mathf.Approximately(x, 1)
-                        ? 1
-                        : x < 0.5
-                            ? Mathf.Pow(2, 20 * x - 10) / 2 - 0.0009765625f * (1 - x)
-                            : (2 - Mathf.Pow(2, -20 * x + 10)) / 2 + 0.0009765625f * x
-            };
-
-            sEases[(int)EaseFunction.Circle] = new Ease
-            {
-                In = (x) => 1 - Mathf.Sqrt(1 - (x * x)),
-                Out = (x) => Mathf.Sqrt(1 - ((x - 1) * (x - 1))),
-                InOut = (x) => x < 0.5
-                    ? (1 - Mathf.Sqrt(1 - ((2 * x) * (2 * x)))) / 2
-                    : (Mathf.Sqrt(1 - ((-2 * x + 2) * (-2 * x + 2))) + 1) / 2
-            };
-
-            sEases[(int)EaseFunction.Back] = new Ease
-            {
-                In = (x) =>
-                {
-                    const float OVERSHOOT = 1.70158f;
-
-                    return 2.70158f * x * x * x - OVERSHOOT * x * x;
-                },
-                Out = (x) =>
-                {
-                    const float OVERSHOOT = 1.70158f;
-
-                    return 1 + 2.70158f * ((x - 1) * (x - 1) * (x - 1)) + OVERSHOOT * ((x - 1) * (x - 1));
-                },
-                InOut = (x) =>
-                {
-                    const float OVERSHOOT = 1.70158f;
-                    const float SCALED_OVERSHOOT = OVERSHOOT * 1.525f;
-
-                    return x < 0.5f
-                        ? ((2 * x) * (2 * x)) * ((SCALED_OVERSHOOT + 1) * 2 * x - SCALED_OVERSHOOT) / 2
-                        : (((2 * x - 2) * (2 * x - 2))* ((SCALED_OVERSHOOT + 1) * (x * 2 - 2) + SCALED_OVERSHOOT) + 2) / 2;
-                }
-            };
-
-            sEases[(int)EaseFunction.Elastic] = new Ease
-            {
-                In = (x) =>
-                {
-                    const float PERIOD = Mathf.PI * 2 / 3;
-
-                    if (x == 0) return 0;
-                    if (Mathf.Approximately(x, 1)) return 1;
-
-                    return -Mathf.Pow(2, 10 * x - 10) * Mathf.Sin((x * 10 - 10.75f) * PERIOD);
-                },
-                Out = (x) =>
-                {
-                    const float PERIOD = Mathf.PI * 2 / 3;
-
-                    if (x == 0)
-                        return 0;
-
-                    if (Mathf.Approximately(x, 1))
-                        return 1;
-
-                    return Mathf.Pow(2, -10 * x) * Mathf.Sin((x * 10 - 0.75f) * PERIOD) + 1;
-                },
-                InOut = (x) =>
-                {
-                    const float PERIOD = Mathf.PI * 2 / 4.5f;
-
-                    if (x == 0)
-                        return 0;
-
-                    if (Mathf.Approximately(x, 1))
-                        return 1;
-
-                    if (x < 0.5)
-                        return -(Mathf.Pow(2, 20 * x - 10) * Mathf.Sin((20 * x - 11.125f) * PERIOD)) / 2;
-
-                    return Mathf.Pow(2, -20 * x + 10) * Mathf.Sin((20 * x - 11.125f) * PERIOD) / 2 + 1;
-                }
-            };
-
-            sEases[(int)EaseFunction.Bounce] = new Ease
-            {
-                In = (x) => 1 - Get(1 - x, EaseFunction.Bounce, EaseMode.Out),
-                Out = (x) =>
-                {
-                    const float BOUNCE_CONSTANT = 7.5625f;
-                    const float BOUNCE_THRESHOLD = 2.75f;
-
-                    if (x < 1 / BOUNCE_THRESHOLD)
-                        return BOUNCE_CONSTANT * (x * x);
-
-
-                    if (x < 2 / BOUNCE_THRESHOLD)
-                        return BOUNCE_CONSTANT * (x -= 1.5f / BOUNCE_THRESHOLD) * x + 0.75f;
-
-                    if (x < 2.5 / BOUNCE_THRESHOLD)
-                        return BOUNCE_CONSTANT * (x -= 2.25f / BOUNCE_THRESHOLD) * x + 0.9375f;
-
-                    return BOUNCE_CONSTANT * (x -= 2.625f / BOUNCE_THRESHOLD) * x + 0.984375f;
-                },
-                InOut = (x) => x < 0.5
-                    ? (1 - Get(1 - 2 * x, EaseFunction.Bounce, EaseMode.Out)) / 2
-                    : (1 + Get(2 * x - 1, EaseFunction.Bounce, EaseMode.Out)) / 2
-            };
-        }
-    }
-
-
     public interface IEaseDirective
     {
         public float Get(float x);
@@ -328,7 +46,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public readonly Vector2 Point1;
         public readonly Vector2 Point2;
 
-        private readonly float[] _Samples;
+        [SerializeField] private float[] _Samples;
 
         public CubicBezierEaseDirective(Vector2 point1, Vector2 point2)
         {
@@ -359,7 +77,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public float Get(float x)
         {
-            if (x == 0 || Mathf.Approximately(x, 1)) return x;
+            if (x == 0 || FastMath.Approximately(x, 1)) return x;
 
             int nIndex = Array.FindIndex(_Samples, n => n > x);
             nIndex = Math.Max(nIndex, 1);
@@ -397,7 +115,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         private float BinarySearchApprox(float x, float minBound, float maxBound)
         {
-            float t, xDiff, i = 0;
+            float t, xDiff;
+            int i = 0;
 
             do
             {
@@ -407,7 +126,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 if (xDiff < 0) minBound = t;
                 else maxBound = t;
             }
-            while (Mathf.Abs(xDiff) < _BINARY_SEARCH_PRECISION && i < _BINARY_SEARCH_MAX_ITERATIONS);
+            while (Mathf.Abs(xDiff) > _BINARY_SEARCH_PRECISION && i++ < _BINARY_SEARCH_MAX_ITERATIONS);
 
             return t;
         }
@@ -423,7 +142,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                 float currentX = GetBezier(initialGuess, Point1.x, Point2.x);
 
-                if (Mathf.Approximately(targetX, currentX))
+                if (FastMath.Approximately(targetX, currentX))
                     return initialGuess;
 
                 initialGuess -= (currentX - targetX) / slope;
@@ -438,4 +157,5 @@ namespace JANOARG.Shared.Data.ChartInfo
             return "CubicBézier";
         }
     }
+
 }
