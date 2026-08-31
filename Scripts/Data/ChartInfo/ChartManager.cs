@@ -30,7 +30,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public PlayableSong Song;
         public Chart        CurrentChart;
 
-        public Dictionary<string, LaneGroupManager> Groups         = new();
+        public Dictionary<ulong, LaneGroupManager> Groups         = new();
         public List<LaneManager>                    Lanes          = new();
         public HitMeshManager                       HitMeshManager = new();
         public PalleteManager                       PalleteManager = new();
@@ -41,7 +41,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public int[] HitObjectsRemaining = new int[2];
         public int   FlicksRemaining;
 
-        private readonly List<string> _GroupKeyScratch = new();
+        private readonly List<ulong> _GroupKeyScratch = new();
 
         // Matches the granularity the Client instruments LanePlayer/PlayerScreen at, so the
         // two profiles can be read against each other.
@@ -109,8 +109,12 @@ namespace JANOARG.Shared.Data.ChartInfo
             {
                 LaneGroup source = CurrentChart.Groups[a];
 
-                // Name isn't storyboarded, so the key is available without evaluating first.
-                if (Groups.TryGetValue(source.Name, out LaneGroupManager groupManager))
+                // Ensure the source has a UUID assigned
+                if (source.UUID == 0)
+                    source.UUID = HighestUuid++;
+
+                // UUID isn't storyboarded, so the key is available without evaluating first.
+                if (Groups.TryGetValue(source.UUID, out LaneGroupManager groupManager))
                 {
                     if (SourcesChanged || groupManager.CurrentGroup == null)
                         groupManager.CurrentGroup = (LaneGroup)source.GetStoryboardableObject(pos);
@@ -123,7 +127,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 {
                     var group = (LaneGroup)source.GetStoryboardableObject(pos);
 
-                    Groups.Add(group.Name, groupManager = new LaneGroupManager(group, pos, this));
+                    Groups.Add(group.UUID, groupManager = new LaneGroupManager(group, pos, this));
                 }
 
                 groupManager.IsTouched = true;
@@ -136,10 +140,10 @@ namespace JANOARG.Shared.Data.ChartInfo
             // cloning the whole dictionary every frame.
             _GroupKeyScratch.Clear();
 
-            foreach (string key in Groups.Keys)
+            foreach (ulong key in Groups.Keys)
                 _GroupKeyScratch.Add(key);
 
-            foreach (string key in _GroupKeyScratch)
+            foreach (ulong key in _GroupKeyScratch)
             {
                 LaneGroupManager group = Groups[key];
 
@@ -419,23 +423,23 @@ namespace JANOARG.Shared.Data.ChartInfo
             rot = FinalRotation * rot;
         }
 
-        public void UpdatePosition(ChartManager main, string original = null)
+        public void UpdatePosition(ChartManager main, ulong originalUuid = 0)
         {
             FinalPosition = CurrentGroup.Position;
             FinalRotation = Quaternion.Euler(CurrentGroup.Rotation);
-            original ??= CurrentGroup.Group;
+            originalUuid = originalUuid != 0 ? originalUuid : CurrentGroup.UUID;
 
-            if (!string.IsNullOrEmpty(CurrentGroup.Group) && main.Groups.ContainsKey(CurrentGroup.Group))
+            if (CurrentGroup.GroupUuid != 0 && main.Groups.ContainsKey(CurrentGroup.GroupUuid))
             {
-                LaneGroupManager group = main.Groups[CurrentGroup.Group];
+                LaneGroupManager group = main.Groups[CurrentGroup.GroupUuid];
 
-                if (original == group.CurrentGroup.Group)
+                if (originalUuid == group.CurrentGroup.UUID)
                 {
-                    Debug.LogError("Cyclical Lane group reference detected: " + original);
+                    Debug.LogError("Cyclical Lane group reference detected: " + CurrentGroup.Name);
                 }
                 else
                 {
-                    if (group.IsDirty) group.UpdatePosition(main, original);
+                    if (group.IsDirty) group.UpdatePosition(main, originalUuid);
                     FinalPosition = group.FinalRotation * FinalPosition + group.FinalPosition;
                     FinalRotation = group.FinalRotation * FinalRotation;
                 }
@@ -866,8 +870,8 @@ namespace JANOARG.Shared.Data.ChartInfo
             FinalPosition = Current.Position;
             FinalRotation = Quaternion.Euler(Current.Rotation);
 
-            if (!string.IsNullOrEmpty(Current.Group) && main.Groups.ContainsKey(Current.Group))
-                main.Groups[Current.Group]
+            if (Current.GroupUuid != 0 && main.Groups.ContainsKey(Current.GroupUuid))
+                main.Groups[Current.GroupUuid]
                     .Get(ref FinalPosition, ref FinalRotation);
 
             StartPosLocal = StartPos = verts[stepCount * 2 - 2] - Vector3.forward * CurrentDistance;

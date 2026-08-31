@@ -135,8 +135,12 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
                 !string.IsNullOrEmpty(group.Group)
                     ? $"\n{indent2}Group: {group.Group}"
                     : "";
+            string parentGroupUuidEncode =
+                group.GroupUuid != 0
+                    ? $"\n{indent2}GroupUuid: {EncodeUuid(group.GroupUuid)}"
+                    : "";
 
-            string str = $"{indent}+ Group {EncodeVector(group.Position)} {EncodeVector(group.Rotation)} {EncodeUuid(group.UUID)}\n{indent2}Name: {group.Name}{parentGroupEncode}{EncodeStoryboard(group, depth + INDENT_SIZE)}\n";
+            string str = $"{indent}+ Group {EncodeVector(group.Position)} {EncodeVector(group.Rotation)} {EncodeUuid(group.UUID)}\n{indent2}Name: {group.Name}{parentGroupEncode}{parentGroupUuidEncode}{EncodeStoryboard(group, depth + INDENT_SIZE)}\n";
 
             return str;
         }
@@ -231,8 +235,9 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             
             string laneName  = !string.IsNullOrEmpty(lane.Name)?  $"\n{indent2}Name: {lane.Name}" : string.Empty;
             string laneGroup = !string.IsNullOrEmpty(lane.Group)? $"\n{indent2}Group: {lane.Group}" : string.Empty;
+            string laneGroupUuid = lane.GroupUuid != 0 ? $"\n{indent2}GroupUuid: {EncodeUuid(lane.GroupUuid)}" : string.Empty;
 
-            string laneInfo = $"{laneName}{laneGroup}";
+            string laneInfo = $"{laneName}{laneGroup}{laneGroupUuid}";
             string laneStyleIndex = lane.StyleIndex.ToString(CultureInfo.InvariantCulture);
 
             string EncodeAllLaneStep()

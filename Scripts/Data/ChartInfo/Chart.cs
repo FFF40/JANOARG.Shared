@@ -467,6 +467,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Vector3 Position;
         public Vector3 Rotation;
         public string  Group;
+        public ulong   GroupUuid;
 
         public override TimestampType[] timestampTypes => ThisTimestampTypes;
         public static TimestampType[] ThisTimestampTypes = {
@@ -528,6 +529,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Storyboard = Storyboard.SelfReference(),
                 Group = Group,
+                GroupUuid = 0,
                 
                 // UUID CANNOT BE CLONED
                 UUID = 0
@@ -561,6 +563,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Vector3 Rotation;
 
         public string Group;
+        public ulong  GroupUuid;
 
         public int StyleIndex = 0;
 
@@ -698,6 +701,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 Position = new Vector3(Position.x, Position.y, Position.z),
                 Rotation = new Vector3(Rotation.x, Rotation.y, Rotation.z),
                 Group = Group,
+                GroupUuid = 0,
                 StyleIndex = StyleIndex,
                 Storyboard = Storyboard.SelfReference(),
                 

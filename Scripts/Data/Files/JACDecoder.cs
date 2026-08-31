@@ -325,6 +325,9 @@ namespace JANOARG.Shared.Data.Files
                                     case "Group":
                                         group.Group = value;
                                         break;
+                                    case "GroupUuid":
+                                        group.GroupUuid = ParseUuidString(value);
+                                        break;
                                 }
                                 break;
                             
@@ -378,6 +381,9 @@ namespace JANOARG.Shared.Data.Files
                                         break;
                                     case "Group":
                                         lane.Group = value;
+                                        break;
+                                    case "GroupUuid":
+                                        lane.GroupUuid = ParseUuidString(value);
                                         break;
                                 }
                                 break;
