@@ -32,7 +32,6 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public Dictionary<ulong, LaneGroupManager> Groups         = new();
         public List<LaneManager>                    Lanes          = new();
-        public HitMeshManager                       HitMeshManager = new();
         public PalleteManager                       PalleteManager = new();
         public CameraController                     Camera;
 
