@@ -117,7 +117,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             CultureInfo ic = CultureInfo.InvariantCulture;
             
             string PerStoryboardEncode(Timestamp timestamp) =>
-                $"\n{indent}$ {timestamp.ID} {timestamp.Offset.ToString(ic)} {timestamp.Duration.ToString(ic)} {timestamp.Target.ToString(ic)} {FetchTimestamFrom(timestamp)} {EncodeEase(timestamp.Easing)}{EncodeUuid(timestamp.Uuid)}";
+                $"\n{indent}$ {timestamp.ID} {timestamp.Offset.ToString(ic)} {timestamp.Duration.ToString(ic)} {timestamp.Target.ToString(ic)} {FetchTimestamFrom(timestamp)} {EncodeEase(timestamp.Easing)}{EncodeUuid(timestamp.UUID)}";
             string FetchTimestamFrom(Timestamp timestamp) =>
                 float.IsFinite(timestamp.From) ? timestamp.From.ToString(ic) : "_";
             foreach (Timestamp timestamp in storyboard.Timestamps)
