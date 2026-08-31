@@ -60,9 +60,8 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [System.Serializable]
-    public class CameraController : Storyboardable, IDeepClonable<CameraController>, IUuidIdentifiableChartObject
+    public class CameraController : Storyboardable, IDeepClonable<CameraController>
     {
-        public ulong UUID { get; set; }
         public Vector3 CameraPivot;
         public float   PivotDistance = 10;
         public Vector3 CameraRotation;
