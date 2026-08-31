@@ -282,10 +282,6 @@ namespace JANOARG.Shared.Data.Files
                                     case "Constant":
                                         currentChart.ChartConstant = ParseFloat(value);
                                         break;
-                                    
-                                    case "HighestUUID":
-                                        currentChart.HighestUuid = ParseUuidString(value);
-                                        break;
                                 }
                                 break;
                             
