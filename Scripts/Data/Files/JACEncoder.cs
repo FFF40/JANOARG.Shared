@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Globalization;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Shared.Utils.Animation;
@@ -71,7 +72,7 @@ Charter: {chart.CharterName}{InsertAltCharter()}
 Level: {chart.DifficultyLevel}
 Constant: {chart.ChartConstant.ToString(CultureInfo.InvariantCulture)}
 
-HighestUUID: {chart.HighestUuid}
+HighestUUID: {EncodeUuid(chart.HighestUuid)}
 
 [CAMERA]
 Pivot: {EncodeVector(chart.Camera.CameraPivot)}
@@ -93,7 +94,14 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             return str;
         }
         
-        private static string EncodeUuid(ulong uuid) => uuid > 0 ? $"@{uuid}" : string.Empty;
+        private static string EncodeUuid(ulong uuid)
+        {
+            if (uuid == 0) return string.Empty;
+            
+            Span<byte> bytes = stackalloc byte[8];
+            BinaryPrimitives.WriteUInt64LittleEndian(bytes, uuid);
+            return $"@{Convert.ToBase64String(bytes)}";
+        }
 
         private static string EncodeStoryboard(Storyboardable storyboard, int depth = 0)
         {
@@ -109,7 +117,7 @@ Interface: {EncodeColor(chart.Palette.InterfaceColor)}{EncodeStoryboard(chart.Pa
             CultureInfo ic = CultureInfo.InvariantCulture;
             
             string PerStoryboardEncode(Timestamp timestamp) =>
-                $"\n{indent}$ {timestamp.ID} {timestamp.Offset.ToString(ic)} {timestamp.Duration.ToString(ic)} {timestamp.Target.ToString(ic)} {FetchTimestamFrom(timestamp)} {EncodeEase(timestamp.Easing)}{EncodeUuid(timestamp.UUID)}";
+                $"\n{indent}$ {timestamp.ID} {timestamp.Offset.ToString(ic)} {timestamp.Duration.ToString(ic)} {timestamp.Target.ToString(ic)} {FetchTimestamFrom(timestamp)} {EncodeEase(timestamp.Easing)}{EncodeUuid(timestamp.Uuid)}";
             string FetchTimestamFrom(Timestamp timestamp) =>
                 float.IsFinite(timestamp.From) ? timestamp.From.ToString(ic) : "_";
             foreach (Timestamp timestamp in storyboard.Timestamps)

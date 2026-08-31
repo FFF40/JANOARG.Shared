@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Globalization;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Shared.Utils.Animation;
@@ -283,7 +284,7 @@ namespace JANOARG.Shared.Data.Files
                                         break;
                                     
                                     case "HighestUUID":
-                                        currentChart.HighestUuid = ulong.Parse(value);
+                                        currentChart.HighestUuid = ParseUuidString(value);
                                         break;
                                 }
                                 break;
@@ -442,12 +443,45 @@ namespace JANOARG.Shared.Data.Files
             throw new ArgumentException("The specified string is not in a valid Easing format");
         }
 
+        private static ulong ParseUuidString(string str)
+        {
+            if (string.IsNullOrEmpty(str))
+                return 0;
+            
+            // Try Base64 first
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(str);
+                if (bytes.Length == 8)
+                    return BinaryPrimitives.ReadUInt64LittleEndian(bytes);
+            }
+            catch (FormatException)
+            {
+                // Not valid Base64, try legacy ulong format
+            }
+            
+            // Fallback to legacy ulong format for backwards compatibility
+            if (ulong.TryParse(str, out var uuid))
+                return uuid;
+            
+            return 0;
+        }
+
         private static ulong ParseUuidFromTokens(string[] tokens, int startIndex)
         {
             for (int i = startIndex; i < tokens.Length; i++)
             {
-                if (tokens[i].StartsWith("@") && ulong.TryParse(tokens[i][1..], out var uuid))
-                    return uuid;
+                if (tokens[i].StartsWith("@"))
+                {
+                    string base64Part = tokens[i][1..];
+                    
+                    if (string.IsNullOrEmpty(base64Part))
+                        continue;
+                    
+                    ulong uuid = ParseUuidString(base64Part);
+                    if (uuid > 0)
+                        return uuid;
+                }
             }
             return 0;
         }        
