@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Globalization;
 using JANOARG.Shared.Data.ChartInfo;
 using JANOARG.Shared.Utils.Animation;
@@ -91,7 +92,8 @@ namespace JANOARG.Shared.Data.Files
                                 Duration = ParseFloat(tokens[3]),
                                 Target = ParseFloat(tokens[4]),
                                 From = tokens[5] == "_" ? float.NaN : ParseFloat(tokens[5]),
-                                Easing = ParseEasing(tokens[6])
+                                Easing = ParseEasing(tokens[6]),
+                                UUID = ParseUuidFromTokens(tokens, 7) 
                             };
 
                             currentStoryboard.Add(ts);
@@ -117,7 +119,8 @@ namespace JANOARG.Shared.Data.Files
                                 LaneGroup group = new()
                                 {
                                     Position = new Vector3(ParseFloat(tokens[2]), ParseFloat(tokens[3]), ParseFloat(tokens[4])),
-                                    Rotation = new Vector3(ParseFloat(tokens[5]), ParseFloat(tokens[6]), ParseFloat(tokens[7]))
+                                    Rotation = new Vector3(ParseFloat(tokens[5]), ParseFloat(tokens[6]), ParseFloat(tokens[7])),
+                                    UUID = ParseUuidFromTokens(tokens, 8) 
                                 };
 
                                 currentObject = group;
@@ -138,7 +141,8 @@ namespace JANOARG.Shared.Data.Files
                                         ParseFloat(tokens[4]), ParseFloat(tokens[5])),
                                     JudgeColor = new Color(
                                         ParseFloat(tokens[6]), ParseFloat(tokens[7]),
-                                        ParseFloat(tokens[8]), ParseFloat(tokens[9]))
+                                        ParseFloat(tokens[8]), ParseFloat(tokens[9])),
+                                    UUID = ParseUuidFromTokens(tokens, 10) 
                                 };
 
                                 currentObject = style;
@@ -162,7 +166,8 @@ namespace JANOARG.Shared.Data.Files
                                         ParseFloat(tokens[8]), ParseFloat(tokens[9])),
                                     CatchColor = new Color(
                                         ParseFloat(tokens[10]), ParseFloat(tokens[11]),
-                                        ParseFloat(tokens[12]), ParseFloat(tokens[13]))
+                                        ParseFloat(tokens[12]), ParseFloat(tokens[13])),
+                                    UUID = ParseUuidFromTokens(tokens, 14) 
                                 };
 
                                 currentObject = style;
@@ -184,7 +189,8 @@ namespace JANOARG.Shared.Data.Files
                                     Rotation = new Vector3(
                                         ParseFloat(tokens[5]), ParseFloat(tokens[6]),
                                         ParseFloat(tokens[7])),
-                                    StyleIndex = ParseInt(tokens[8])
+                                    StyleIndex = ParseInt(tokens[8]),
+                                    UUID = ParseUuidFromTokens(tokens, 9) 
                                 };
 
                                 currentObject = currentLane = lane;
@@ -208,7 +214,8 @@ namespace JANOARG.Shared.Data.Files
                                     EndPointPosition = new Vector2(ParseFloat(tokens[7]), ParseFloat(tokens[8])),
                                     EndEaseX = ParseEasing(tokens[9]),
                                     EndEaseY = ParseEasing(tokens[10]),
-                                    Speed = ParseFloat(tokens[11])
+                                    Speed = ParseFloat(tokens[11]),
+                                    UUID = ParseUuidFromTokens(tokens, 12) 
                                 };
 
                                 currentObject = step;
@@ -232,7 +239,8 @@ namespace JANOARG.Shared.Data.Files
                                     Flickable = tokens[7][0] == 'F',
                                     FlickDirection = tokens[7].Length > 1 ? ParseFloat(tokens[7][1..]) : float.NaN,
                                     StyleIndex = ParseInt(tokens[8]),
-                                    IsFake = tokens.Length > 9 && (tokens[9] == "_")
+                                    IsFake = tokens.Length > 9 && (tokens[9] == "_"),
+                                    UUID = ParseUuidFromTokens(tokens, 9) 
                                 };
 
                                 currentObject = hit;
@@ -313,6 +321,9 @@ namespace JANOARG.Shared.Data.Files
                                     case "Group":
                                         group.Group = value;
                                         break;
+                                    case "GroupUuid":
+                                        group.GroupUuid = ParseUuidString(value);
+                                        break;
                                 }
                                 break;
                             
@@ -366,6 +377,9 @@ namespace JANOARG.Shared.Data.Files
                                         break;
                                     case "Group":
                                         lane.Group = value;
+                                        break;
+                                    case "GroupUuid":
+                                        lane.GroupUuid = ParseUuidString(value);
                                         break;
                                 }
                                 break;
@@ -431,6 +445,49 @@ namespace JANOARG.Shared.Data.Files
             throw new ArgumentException("The specified string is not in a valid Easing format");
         }
 
+        private static ulong ParseUuidString(string str)
+        {
+            if (string.IsNullOrEmpty(str))
+                return 0;
+            
+            // Try Base64 first
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(str);
+                if (bytes.Length == 8)
+                    return BinaryPrimitives.ReadUInt64LittleEndian(bytes);
+            }
+            catch (FormatException)
+            {
+                // Not valid Base64, try legacy ulong format
+            }
+            
+            // Fallback to legacy ulong format for backwards compatibility
+            if (ulong.TryParse(str, out var uuid))
+                return uuid;
+            
+            return 0;
+        }
+
+        private static ulong ParseUuidFromTokens(string[] tokens, int startIndex)
+        {
+            for (int i = startIndex; i < tokens.Length; i++)
+            {
+                if (tokens[i].StartsWith("@"))
+                {
+                    string base64Part = tokens[i][1..];
+                    
+                    if (string.IsNullOrEmpty(base64Part))
+                        continue;
+                    
+                    ulong uuid = ParseUuidString(base64Part);
+                    if (uuid > 0)
+                        return uuid;
+                }
+            }
+            return 0;
+        }        
+        
         private static int ParseInt(string number)
         {
             return int.Parse(number, CultureInfo.InvariantCulture);

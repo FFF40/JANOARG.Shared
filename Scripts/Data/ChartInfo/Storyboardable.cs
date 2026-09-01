@@ -21,7 +21,7 @@ namespace JANOARG.Shared.Data.ChartInfo
     }
 
     [Serializable]
-    public class Timestamp : IDeepClonable<Timestamp>
+    public class Timestamp : IDeepClonable<Timestamp>, IUuidIdentifiableChartObject
     {
         [FormerlySerializedAs("Time")]
         public BeatPosition Offset;
@@ -34,6 +34,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         [SerializeReference]
         public IEaseDirective Easing = new BasicEaseDirective(EaseFunction.Linear, EaseMode.In);
 
+        public ulong UUID { get; set; }
+
         public Timestamp DeepClone()
         {
             var clone = new Timestamp
@@ -43,7 +45,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 ID = ID,
                 From = From,
                 Target = Target,
-                Easing = Easing
+                Easing = Easing,
+                
+                // UUID CANNOT BE CLONED
+                UUID = 0
             };
 
             return clone;
