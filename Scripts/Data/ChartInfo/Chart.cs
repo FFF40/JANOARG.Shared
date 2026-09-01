@@ -795,13 +795,45 @@ namespace JANOARG.Shared.Data.ChartInfo
 
     public static class InternalChartTool
     {
-        public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor)
-        {
+        // How far the highlight and glow are pushed away from the background. Kept low
+        // so the cue still reads as the colour of the note it is carrying.
+        const float HighlightContrastShift = 0.15f;
+        const float GlowContrastShift      = 0.25f;
 
-            Color highlight = baseColor;
-            highlight.a *= 0.5f;
-            Color glow = baseColor;
-            glow.a *= 0.4f;
+        const float HighlightOpacity = 0.5f;
+        const float GlowOpacity      = 0.8f;
+
+        // Luminance gap between note and background at which the shift reaches full
+        // strength. Below it the shift scales down proportionally.
+        const float ContrastDeltaRange = 0.5f;
+
+        static float Luminance(Color color)
+        {
+            return color.r * 0.2126f + color.g * 0.7152f + color.b * 0.0722f;
+        }
+
+        // Signed by how the note already sits against its background: a note brighter
+        // than the field pushes brighter still, a darker one pushes darker. That extends
+        // the contrast the chart author already chose instead of imposing a direction,
+        // and it works on both the dark and light backgrounds in the library.
+        // Continuous on purpose - both note and background colours are storyboardable,
+        // and a hard threshold would pop as either animated across the crossover.
+        static float ContrastDirection(Color baseColor, Color background)
+        {
+            return Mathf.Clamp((Luminance(baseColor) - Luminance(background)) / ContrastDeltaRange, -1, 1);
+        }
+
+        public static (Color highlight, Color glow) CalculateSimultaneousColors(Color baseColor, Color background)
+        {
+            float direction = ContrastDirection(baseColor, background);
+            Color target    = direction >= 0 ? Color.white : Color.black;
+            float weight    = Mathf.Abs(direction);
+
+            Color highlight = Color.Lerp(baseColor, target, weight * HighlightContrastShift);
+            highlight.a = baseColor.a * HighlightOpacity;
+
+            Color glow = Color.Lerp(baseColor, target, weight * GlowContrastShift);
+            glow.a = baseColor.a * GlowOpacity;
 
             return (highlight, glow);
         }

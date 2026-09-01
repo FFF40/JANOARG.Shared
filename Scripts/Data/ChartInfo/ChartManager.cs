@@ -206,10 +206,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                 var style = (HitStyle)pallete.HitStyles[a]
                     .GetStoryboardableObject(pos);
 
-                if (HitStyles.Count <= a) HitStyles.Add(new HitStyleManager(style));
+                if (HitStyles.Count <= a) HitStyles.Add(new HitStyleManager(style, pallete.BackgroundColor));
                 else
                     HitStyles[a]
-                        .Update(style);
+                        .Update(style, pallete.BackgroundColor);
             }
 
             while (HitStyles.Count > pallete.HitStyles.Count)
@@ -271,12 +271,12 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material BaseHoldTailMaterial;
         public Material HoldTailMaterial;
 
-        public HitStyleManager(HitStyle style)
+        public HitStyleManager(HitStyle style, Color background)
         {
-            Update(style);
+            Update(style, background);
         }
 
-        public void Update(HitStyle style)
+        public void Update(HitStyle style, Color background)
         {
             if (!BaseMainMaterial || BaseMainMaterial.name != style.MainMaterial)
             {
@@ -306,14 +306,14 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             if (NormalHighlightMaterial && NormalHighlightGlowMaterial)
             {
-                (Color highlight, Color glow) = InternalChartTool.CalculateSimultaneousColors(style.NormalColor);
+                (Color highlight, Color glow) = InternalChartTool.CalculateSimultaneousColors(style.NormalColor, background);
                 NormalHighlightMaterial.SetColor(style.MainColorTarget, highlight);
                 NormalHighlightGlowMaterial.SetColor(style.MainColorTarget, glow);
             }
 
             if (CatchHighlightMaterial && CatchHighlightGlowMaterial)
             {
-                (Color highlight, Color glow) = InternalChartTool.CalculateSimultaneousColors(style.CatchColor);
+                (Color highlight, Color glow) = InternalChartTool.CalculateSimultaneousColors(style.CatchColor, background);
                 CatchHighlightMaterial.SetColor(style.MainColorTarget, highlight);
                 CatchHighlightGlowMaterial.SetColor(style.MainColorTarget, glow);
             }
