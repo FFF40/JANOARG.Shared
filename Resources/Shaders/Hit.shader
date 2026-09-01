@@ -8,7 +8,13 @@ Shader "JANOARG/Hit/Default"
     SubShader
     {
         Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Fade" }
-        Blend SrcAlpha OneMinusSrcAlpha
+        // Separate alpha blend so this renders correctly into a transparent render target
+        // (the options panel preview camera clears its RenderTexture to alpha 0). Straight
+        // SrcAlpha/OneMinusSrcAlpha under-accumulates destination alpha there, which the
+        // RawImage composite then multiplies in a second time, darkening transparent pixels.
+        // Against an opaque destination dstA is already 1 and srcA + 1*(1-srcA) = 1, so this
+        // leaves the in-game player unchanged.
+        Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
         ZWrite Off
         LOD 100
 
