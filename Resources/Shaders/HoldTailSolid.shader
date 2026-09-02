@@ -9,7 +9,11 @@ Shader "JANOARG/Hold Tail/Solid"
     {
         Tags { "IgnoreProjector"="True" "RenderType"="Fade" }
         Cull Off
-        Blend SrcAlpha OneMinusSrcAlpha
+        // Separate alpha blend, matching Hit.shader and Highlight.shader, so this composites
+        // correctly into a transparent render target (the options panel preview camera clears
+        // its RenderTexture to alpha 0). Against an opaque destination dstA is already 1 and
+        // srcA + 1*(1-srcA) = 1, so gameplay rendering is unchanged.
+        Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
         LOD 100
 
         Pass

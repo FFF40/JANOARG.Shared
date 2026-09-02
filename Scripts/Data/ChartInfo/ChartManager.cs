@@ -263,6 +263,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material CatchMaterial;
         
         public Material BaseHighlightMaterial;
+        public Material BaseHighlightGlowMaterial;
         public Material NormalHighlightMaterial;
         public Material NormalHighlightGlowMaterial;
         public Material CatchHighlightMaterial;
@@ -287,9 +288,17 @@ namespace JANOARG.Shared.Data.ChartInfo
             if (!BaseHighlightMaterial || BaseHighlightMaterial.name != style.MainMaterial)
             {
                 NormalHighlightMaterial = new Material(BaseHighlightMaterial = InternalChartTool.LoadStyleMaterial("Highlight", style.MainMaterial));
-                NormalHighlightGlowMaterial = new Material(BaseHighlightMaterial);
                 CatchHighlightMaterial = new Material(BaseHighlightMaterial);
-                CatchHighlightGlowMaterial = new Material(BaseHighlightMaterial);
+            }
+
+            // The glow is drawn by a SpriteRenderer, so it needs a sprite-pipeline shader rather
+            // than the mesh shader the highlight bar uses - see JANOARG/HighlightGlow/Default.
+            // Sharing one material between a MeshRenderer and a SpriteRenderer is what left the
+            // sprite's texture unbound in player builds and drew the glow as a solid box.
+            if (!BaseHighlightGlowMaterial || BaseHighlightGlowMaterial.name != style.MainMaterial)
+            {
+                NormalHighlightGlowMaterial = new Material(BaseHighlightGlowMaterial = InternalChartTool.LoadStyleMaterial("HighlightGlow", style.MainMaterial));
+                CatchHighlightGlowMaterial = new Material(BaseHighlightGlowMaterial);
             }
 
             if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 
