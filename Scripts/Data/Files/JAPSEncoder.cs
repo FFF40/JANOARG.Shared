@@ -11,6 +11,7 @@ namespace JANOARG.Shared.Data.Files
 
         public static string Encode(PlayableSong song, string clipName)
         {
+            string InsertAltSongName() => !string.IsNullOrWhiteSpace(song.AltSongName) ? $"\nAlt Name: {song.AltSongName}" : string.Empty;
             string InsertAltSongArtist() => !string.IsNullOrWhiteSpace(song.AltSongArtist) ? $"\nAlt Artist: {song.AltSongArtist}" : string.Empty;
             string InsertAltCoverArtist() => !string.IsNullOrWhiteSpace(song.Cover.AltArtistName) ? $"\nAlt Artist: {song.Cover.AltArtistName}" : string.Empty;
             
@@ -45,7 +46,7 @@ github.com/FFF40/JANOARG
 {FORMAT_VERSION}
 
 [METADATA]
-Name: {song.SongName}
+Name: {song.SongName}{InsertAltSongName()}
 Artist: {song.SongArtist}{InsertAltSongArtist()}
 Genre: {song.Genre}
 Location: {song.Location}
@@ -55,7 +56,7 @@ Preview Range: {EncodeVector(song.PreviewRange)}
 Clip: {clipName}
 
 [COVER]
-Artist: {song.Cover.ArtistName} {InsertAltCoverArtist()}
+Artist: {song.Cover.ArtistName}{InsertAltCoverArtist()}
 Background: {EncodeColor(song.Cover.BackgroundColor)}
 Icon: {song.Cover.IconTarget}
 Icon Center: {EncodeVector(song.Cover.IconCenter)}
@@ -105,7 +106,7 @@ Interface: {EncodeColor(song.InterfaceColor)}
             string indent = new(' ', depth);
             string indent2 = new(' ', depth + INDENT_SIZE);
 
-            string str = $@" {indent}+ Chart
+            string str = $@"{indent}+ Chart
 {indent2}Target: {chart.Target}
 {indent2}Index: {chart.DifficultyIndex.ToString(CultureInfo.InvariantCulture)}
 {indent2}Name: {chart.DifficultyName}

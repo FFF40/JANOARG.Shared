@@ -31,7 +31,7 @@ namespace JANOARG.Shared.Data.Files
             {
                 foreach (string l in lines)
                 {
-                    string line = l.TrimStart();
+                    string line = l.Trim();
                     
                     bool isInSection = line.StartsWith("[") && line.EndsWith("]");
                     bool isStoryboardToken = line.StartsWith("$");
@@ -82,7 +82,7 @@ namespace JANOARG.Shared.Data.Files
                     {
                         string[] tokens = line.Split(' ');
 
-                        if (tokens.Length >= 6)
+                        if (tokens.Length >= 7)
                         {
                             Timestamp ts = new()
                             {
@@ -94,11 +94,14 @@ namespace JANOARG.Shared.Data.Files
                                 Easing = ParseEasing(tokens[6])
                             };
 
+                            if (currentStoryboard == null)
+                                throw new Exception("A storyboard token appeared before any object that can hold one.");
+
                             currentStoryboard.Add(ts);
                         }
                         else
                         {
-                            throw new Exception("Not enough tokens (minimum 6, got " + tokens.Length + ").");
+                            throw new Exception("Not enough tokens (minimum 7, got " + tokens.Length + ").");
                         }
                     }
                     else if (isObjectToken)
@@ -229,7 +232,7 @@ namespace JANOARG.Shared.Data.Files
                                     Position = ParseFloat(tokens[4]),
                                     Length = ParseFloat(tokens[5]),
                                     HoldLength = ParseFloat(tokens[6]),
-                                    Flickable = tokens[7][0] == 'F',
+                                    Flickable = tokens[7].Length > 0 && tokens[7][0] == 'F',
                                     FlickDirection = tokens[7].Length > 1 ? ParseFloat(tokens[7][1..]) : float.NaN,
                                     StyleIndex = ParseInt(tokens[8]),
                                     IsFake = tokens.Length > 9 && (tokens[9] == "_")

@@ -29,7 +29,7 @@ namespace JANOARG.Shared.Data.Files
                 foreach (string l in lines)
                 {
                     
-                    string line = l.TrimStart();
+                    string line = l.Trim();
 
                     bool isInSection = line.StartsWith("[") && line.EndsWith("]");
                     bool isObjectToken = line.StartsWith("+");
@@ -76,10 +76,10 @@ namespace JANOARG.Shared.Data.Files
                     {
                         string[] tokens = line.Split(' ');
 
-                        string objectType = tokens[1];
-                        
                         if (tokens.Length < 2)
                             throw new Exception("Object token expected but not found.");
+
+                        string objectType = tokens[1];
 
                         switch (objectType)
                         {
@@ -133,7 +133,7 @@ namespace JANOARG.Shared.Data.Files
                     {
                         int pos = line.IndexOf(": ", StringComparison.InvariantCulture);
                         string key = line[..pos];
-                        string value = line[(pos + 2)..];
+                        string value = line[(pos + 2)..].Trim();
 
                         switch (currentObject)
                         {
