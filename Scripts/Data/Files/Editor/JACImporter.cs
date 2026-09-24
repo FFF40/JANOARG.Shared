@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace JANOARG.Shared.Data.Files.Editor
 {
-    [ScriptedImporter(2, "jac", 1001)]
+    [ScriptedImporter(3, "jac", 1001)]
     public class JACImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)
