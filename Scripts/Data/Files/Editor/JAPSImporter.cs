@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace JANOARG.Shared.Data.Files.Editor
 {
-    [ScriptedImporter(1, "japs", 1000)]
+    [ScriptedImporter(2, "japs", 1000)]
     public class JAPSImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)
@@ -16,10 +16,15 @@ namespace JANOARG.Shared.Data.Files.Editor
             var ext = ScriptableObject.CreateInstance<ExternalPlayableSong>();
             ext.Data = song;
 
-            song.Clip = AssetDatabase.LoadAssetAtPath<AudioClip>(
-                Path.Combine(
-                    Path.GetDirectoryName(ctx.assetPath),
-                    song.ClipPath));
+            string clipPath = Path.Combine(
+                Path.GetDirectoryName(ctx.assetPath) ?? string.Empty,
+                song.ClipPath ?? string.Empty);
+
+            // Without this the artifact is not rebuilt when the clip changes, moves, or is imported
+            // after this asset - leaving song.Clip null in the bake even though the file is correct.
+            ctx.DependsOnSourceAsset(clipPath);
+
+            song.Clip = AssetDatabase.LoadAssetAtPath<AudioClip>(clipPath);
 
             ctx.AddObjectToAsset("main obj", ext);
             ctx.SetMainObject(ext);
