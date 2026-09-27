@@ -299,6 +299,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                 return;
             }
 
+            bool removedAny = false;
+
             foreach (TimestampType timestampType in timestampTypes)
             {
                 float value = CurrentValues[(int)timestampType.ID];
@@ -323,18 +325,23 @@ namespace JANOARG.Shared.Data.ChartInfo
                     else
                     {
                         // Completed: safe to bake into CurrentValues.
-                        // Remove directly from Timestamps list to avoid invalidating _TypeCache
-                        // on every deletion — we'll do one bulk InvalidateCache after the loop.
+                        // Remove directly from Timestamps list and invalidate once at the end
+                        // (only if something was actually removed) rather than per deletion.
                         CurrentValues[(int)timestampType.ID] = value = timestamp.Target;
                         Storyboard.Timestamps.Remove(timestamp);
+                        removedAny = true;
                     }
                 }
 
                 timestampType.StoryboardSetter(this, value);
             }
 
-            // Single cache invalidation after all removals, rather than one per removal.
-            Storyboard.InvalidateCache();
+            // Only invalidate when something was actually removed: the cache maps type -> sorted
+            // Timestamp[] over Storyboard.Timestamps, so it is only stale after a removal. Skipping
+            // the clear on the common frames lets FromType keep returning its cached arrays instead
+            // of reallocating one per timestamp type every frame.
+            if (removedAny)
+                Storyboard.InvalidateCache();
 
             CurrentTime = time;
         }

@@ -231,6 +231,11 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material BaseJudgeMaterial;
         public Material JudgeMaterial;
 
+        // Last style material names that were applied. Reading Material.name allocates a managed
+        // string on every access, and Update runs every frame, so compare the cached names instead.
+        private string _laneMaterialName;
+        private string _judgeMaterialName;
+
         public LaneStyleManager(LaneStyle style)
         {
             Update(style);
@@ -240,9 +245,17 @@ namespace JANOARG.Shared.Data.ChartInfo
         {
             // Debug.Log(style.LaneMaterial);
 
-            if (BaseLaneMaterial?.name != style.LaneMaterial) LaneMaterial = new Material(BaseLaneMaterial = InternalChartTool.LoadStyleMaterial("Lane", style.LaneMaterial));
+            if (!BaseLaneMaterial || _laneMaterialName != style.LaneMaterial)
+            {
+                _laneMaterialName = style.LaneMaterial;
+                LaneMaterial = new Material(BaseLaneMaterial = InternalChartTool.LoadStyleMaterial("Lane", style.LaneMaterial));
+            }
 
-            if (BaseJudgeMaterial?.name != style.JudgeMaterial) JudgeMaterial = new Material(BaseJudgeMaterial = InternalChartTool.LoadStyleMaterial("Judge", style.JudgeMaterial));
+            if (!BaseJudgeMaterial || _judgeMaterialName != style.JudgeMaterial)
+            {
+                _judgeMaterialName = style.JudgeMaterial;
+                JudgeMaterial = new Material(BaseJudgeMaterial = InternalChartTool.LoadStyleMaterial("Judge", style.JudgeMaterial));
+            }
 
             if (LaneMaterial) LaneMaterial.SetColor(style.LaneColorTarget, style.LaneColor);
             if (JudgeMaterial) JudgeMaterial.SetColor(style.JudgeColorTarget, style.JudgeColor);
@@ -272,6 +285,14 @@ namespace JANOARG.Shared.Data.ChartInfo
         public Material BaseHoldTailMaterial;
         public Material HoldTailMaterial;
 
+        // Last applied style names — see LaneStyleManager: Material.name allocates on every access
+        // and this Update runs every frame. Each base material keys off the style it was loaded
+        // from, so each gets its own cache (they can change independently of one another).
+        private string _normalMaterialName;
+        private string _highlightMaterialName;
+        private string _highlightGlowMaterialName;
+        private string _holdTailMaterialName;
+
         public HitStyleManager(HitStyle style, Color background)
         {
             Update(style, background);
@@ -279,14 +300,16 @@ namespace JANOARG.Shared.Data.ChartInfo
 
         public void Update(HitStyle style, Color background)
         {
-            if (!BaseMainMaterial || BaseMainMaterial.name != style.MainMaterial)
+            if (!BaseMainMaterial || _normalMaterialName != style.MainMaterial)
             {
+                _normalMaterialName = style.MainMaterial;
                 NormalMaterial = new Material(BaseMainMaterial = InternalChartTool.LoadStyleMaterial("Hit", style.MainMaterial));
                 CatchMaterial = new Material(BaseMainMaterial);
             }
 
-            if (!BaseHighlightMaterial || BaseHighlightMaterial.name != style.MainMaterial)
+            if (!BaseHighlightMaterial || _highlightMaterialName != style.MainMaterial)
             {
+                _highlightMaterialName = style.MainMaterial;
                 NormalHighlightMaterial = new Material(BaseHighlightMaterial = InternalChartTool.LoadStyleMaterial("Highlight", style.MainMaterial));
                 CatchHighlightMaterial = new Material(BaseHighlightMaterial);
             }
@@ -295,14 +318,18 @@ namespace JANOARG.Shared.Data.ChartInfo
             // than the mesh shader the highlight bar uses - see JANOARG/HighlightGlow/Default.
             // Sharing one material between a MeshRenderer and a SpriteRenderer is what left the
             // sprite's texture unbound in player builds and drew the glow as a solid box.
-            if (!BaseHighlightGlowMaterial || BaseHighlightGlowMaterial.name != style.MainMaterial)
+            if (!BaseHighlightGlowMaterial || _highlightGlowMaterialName != style.MainMaterial)
             {
+                _highlightGlowMaterialName = style.MainMaterial;
                 NormalHighlightGlowMaterial = new Material(BaseHighlightGlowMaterial = InternalChartTool.LoadStyleMaterial("HighlightGlow", style.MainMaterial));
                 CatchHighlightGlowMaterial = new Material(BaseHighlightGlowMaterial);
             }
 
-            if (BaseHoldTailMaterial?.name != style.HoldTailMaterial) 
+            if (!BaseHoldTailMaterial || _holdTailMaterialName != style.HoldTailMaterial)
+            {
+                _holdTailMaterialName = style.HoldTailMaterial;
                 HoldTailMaterial = new Material(BaseHoldTailMaterial = InternalChartTool.LoadStyleMaterial("Hold", style.HoldTailMaterial));
+            }
 
             if (NormalMaterial)
                 NormalMaterial.SetColor(style.MainColorTarget, style.NormalColor);
