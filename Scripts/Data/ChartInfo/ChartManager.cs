@@ -1194,7 +1194,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                 return;
 
             // Handle remaining counts (only when time <= TimeStart)
-            if (time <= TimeStart)
+            if (time <= TimeStart && !current.IsFake)
             {
                 main.HitObjectsRemaining[(int)current.Type]++;
                 
