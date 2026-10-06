@@ -64,6 +64,13 @@ namespace JANOARG.Shared.Data.ChartInfo
         public  List<Timestamp>              Timestamps = new();
         private Dictionary<int, Timestamp[]> _TypeCache = new();
 
+        // Bumped on every mutation so consumers that cache derived state (e.g.
+        // DirtyTrackedStoryboardable's per-type advance index) can detect that the storyboard
+        // was edited after they last read it.
+        private int _Version;
+
+        public int Version => _Version;
+
         public int Count => Timestamps.Count;
 
         public bool IsReadOnly => false;
@@ -107,6 +114,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public void InvalidateCache()
         {
             _TypeCache.Clear();
+            _Version++;
         }
 
         public Timestamp[] FromType(TimestampIDs type)
@@ -365,11 +373,16 @@ namespace JANOARG.Shared.Data.ChartInfo
         // Completed timestamps are baked into CurrentValues; the index just tracks how far we've gone.
         private Dictionary<TimestampIDs, int> _TimestampIndex;
 
+        // The Storyboard.Version the indices above were built against. Any edit invalidates every
+        // index — including the exhausted sentinel — so they must be dropped and rebuilt.
+        private int _TimestampVersion = -1;
+
         // Sentinel index meaning "every timestamp of this type is already baked into
         // CurrentValues, forward time can never change it again" — since time only moves
         // forward within a single Advance() sequence (Reset() is required for scrubbing
         // backward), once a type reaches this state we can skip FromType()/the scan loop
         // for it on every subsequent call instead of re-checking it every frame forever.
+        // Only valid while the storyboard is unchanged — see _TimestampVersion.
         private const int ExhaustedIndex = int.MaxValue;
 
         public override void Advance(float time)
@@ -382,6 +395,14 @@ namespace JANOARG.Shared.Data.ChartInfo
                 foreach (TimestampType timestampType in timestampTypes)
                     CurrentValues[(int)timestampType.ID] = timestampType.StoryboardGetter(this);
             }
+            else if (_TimestampVersion != Storyboard.Version)
+            {
+                // The storyboard was edited since the last Advance — a timestamp may have been
+                // added after a type was marked exhausted, so every cached index is stale.
+                _TimestampIndex.Clear();
+            }
+
+            _TimestampVersion = Storyboard.Version;
 
             foreach (TimestampType timestampType in timestampTypes)
             {
