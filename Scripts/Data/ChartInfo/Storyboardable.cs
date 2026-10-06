@@ -268,7 +268,7 @@ namespace JANOARG.Shared.Data.ChartInfo
                             timestamp.Easing.Get((time - timestamp.Offset) / timestamp.Duration)
                         );
 
-                        break;
+                        // Don't break — a later overlapping timestamp may also be active.
                     }
                     else
                         break;
@@ -316,11 +316,11 @@ namespace JANOARG.Shared.Data.ChartInfo
                     if (time < timestamp.Offset + timestamp.Duration)
                     {
                         // In-progress: never delete — time may revisit this range on scrub.
+                        // Don't break — a later overlapping timestamp may also be active.
                         if (!float.IsNaN(timestamp.From))
                             CurrentValues[(int)timestampType.ID] = value = timestamp.From;
 
                         value = Mathf.LerpUnclamped(value, timestamp.Target, timestamp.Easing.Get((time - timestamp.Offset) / timestamp.Duration));
-                        break;
                     }
                     else
                     {
@@ -395,6 +395,8 @@ namespace JANOARG.Shared.Data.ChartInfo
                     // FromType returns a sorted, cached array — same source as GetStoryboardableObject.
                     Timestamp[] timestamps = Storyboard.FromType(timestampType.ID);
 
+                    int firstInProgressIndex = -1;
+
                     while (index < timestamps.Length)
                     {
                         Timestamp timestamp = timestamps[index];
@@ -404,13 +406,17 @@ namespace JANOARG.Shared.Data.ChartInfo
 
                         if (time < timestamp.Offset + timestamp.Duration)
                         {
-                            // In-progress: don't advance index — time may re-enter this range.
+                            // In-progress: don't advance past it (time may re-enter this range on scrub),
+                            // but do continue scanning for later overlapping timestamps.
+                            if (firstInProgressIndex < 0)
+                                firstInProgressIndex = index;
+
                             if (!float.IsNaN(timestamp.From))
                                 CurrentValues[(int)timestampType.ID] = value = timestamp.From;
 
                             value = Mathf.LerpUnclamped(value, timestamp.Target, timestamp.Easing.Get((time - timestamp.Offset) / timestamp.Duration));
                             IsDirty = true;
-                            break;
+                            index++;
                         }
                         else
                         {
@@ -421,7 +427,10 @@ namespace JANOARG.Shared.Data.ChartInfo
                         }
                     }
 
-                    _TimestampIndex[timestampType.ID] = index >= timestamps.Length ? ExhaustedIndex : index;
+                    // Restore index to the first in-progress timestamp so scrubbing backward works.
+                    _TimestampIndex[timestampType.ID] = firstInProgressIndex >= 0
+                        ? firstInProgressIndex
+                        : (index >= timestamps.Length ? ExhaustedIndex : index);
                 }
 
                 timestampType.StoryboardSetter(this, value);
