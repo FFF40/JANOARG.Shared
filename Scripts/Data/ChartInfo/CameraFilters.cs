@@ -229,15 +229,24 @@ public Vector2 BloomDirection = Vector2.one;
         public EffectSettings Settings;
         public Material Material;
         public PostProcessingManager Manager;
+        public Camera Camera;
 
-        public EffectDrawContext(PostProcessingManager manager, RenderTexture src, RenderTexture dest, EffectSettings settings, Material material)
+        public EffectDrawContext(PostProcessingManager manager, RenderTexture src, RenderTexture dest, EffectSettings settings, Material material, Camera camera)
         {
             Manager  = manager;
             Src      = src;
             Dest     = dest;
             Settings = settings;
             Material = material;
+            Camera   = camera;
         }
+
+        /// <summary>
+        /// The blit that lands on the camera's own output. Use this rather than Graphics.Blit
+        /// whenever Dest is the destination the chain finishes on.
+        /// </summary>
+        public void BlitFinal(RenderTexture source, Material material)
+            => PostProcessingManager.BlitScoped(source, Dest, Camera, material);
     }
 
     /// <summary>
@@ -289,7 +298,13 @@ public Vector2 BloomDirection = Vector2.one;
                 _height = height;
             }
 
-            public Vector4 TexelSize => new(1f / _width, 1f / _height, _width, _height);
+            /// <summary>
+            /// Matches Unity's _MainTex_TexelSize convention: xy is the target size in pixels,
+            /// zw its reciprocal. The shader divides by xy, so it has to be pixels — passing the
+            /// reciprocal instead scales each tap by the buffer width and smears the frame edge
+            /// across the whole viewport.
+            /// </summary>
+            public Vector4 TexelSize => new(_width, _height, 1f / _width, 1f / _height);
 
             void ReleaseBuffers()
             {
@@ -363,7 +378,7 @@ public Vector2 BloomDirection = Vector2.one;
 
             buffers.Compose.SetFloat(Effect.StrengthId, strength);
             buffers.Compose.SetTexture(Effect.AdditiveTexId, blurred);
-            Graphics.Blit(context.Src, context.Dest, buffers.Compose);
+            context.BlitFinal(context.Src, buffers.Compose);
         }
 
         /// <summary>
@@ -417,6 +432,22 @@ public Vector2 BloomDirection = Vector2.one;
 
         /// <summary>Resolved once per frame by CollectActive, so the passes do not repeat the lookups.</summary>
         readonly List<ActiveEffect> _active = new();
+
+        Camera _camera;
+        bool   _cameraResolved;
+
+        Camera Camera
+        {
+            get
+            {
+                if (!_cameraResolved)
+                {
+                    _camera = GetComponent<Camera>();
+                    _cameraResolved = true;
+                }
+                return _camera;
+            }
+        }
 
         bool _materialsBuilt;
 
@@ -485,7 +516,7 @@ public Vector2 BloomDirection = Vector2.one;
             if (!LogDiagnostics || _loggedFrames >= 3) return;
             _loggedFrames++;
 
-            Camera cam = GetComponent<Camera>();
+            Camera cam = Camera;
             Debug.Log(
                 $"[CameraFilters] viewport {cam.pixelWidth}x{cam.pixelHeight} rect {cam.rect} | " +
                 $"intermediate {src.width}x{src.height} fmt {src.format} depth {src.depth} aa {src.antiAliasing} | " +
@@ -537,6 +568,47 @@ public Vector2 BloomDirection = Vector2.one;
             _materialsBuilt = false;
         }
 
+        /// <summary>
+        /// Blits into <paramref name="dest"/>, scoped to the camera's own sub-viewport when that
+        /// viewport is the backbuffer.
+        ///
+        /// Graphics.Blit always targets the whole texture. The player view is a docked panel, so
+        /// the camera owns a fraction of the backbuffer, and an unscoped final blit paints the
+        /// filtered frame across the entire window — over the timeline and the panels either side
+        /// of it.
+        ///
+        /// The backbuffer is identified by its size matching Screen, so when the destination is an
+        /// intermediate sized to the viewport already (or a render target during an offline
+        /// render) this is an ordinary blit.
+        /// </summary>
+        internal static void BlitScoped(RenderTexture src, RenderTexture dest, Camera camera, Material material)
+        {
+            void Blit()
+            {
+                if (material != null) Graphics.Blit(src, dest, material);
+                else                 Graphics.Blit(src, dest);
+            }
+
+            if (camera == null || dest == null) { Blit(); return; }
+            if (dest.width != Screen.width || dest.height != Screen.height) { Blit(); return; }
+
+            Rect rect = camera.rect;
+            if (rect.x <= 0f && rect.y <= 0f && rect.width >= 1f && rect.height >= 1f) { Blit(); return; }
+
+            GL.Viewport(new Rect(
+                rect.x * dest.width,
+                rect.y * dest.height,
+                rect.width * dest.width,
+                rect.height * dest.height
+            ));
+            Blit();
+
+            // GL exposes a setter but no getter. Graphics.Blit resets the viewport to the whole
+            // destination on every call, so restoring that default leaves anything downstream
+            // seeing exactly what it would have seen without this.
+            GL.Viewport(new Rect(0, 0, dest.width, dest.height));
+        }
+
         void OnRenderImage(RenderTexture src, RenderTexture dest)
         {
             BuildMaterials();
@@ -559,12 +631,12 @@ public Vector2 BloomDirection = Vector2.one;
 
                 if (only.Effect.Draw != null)
                 {
-                    only.Effect.Draw(new EffectDrawContext(this, src, dest, only.Settings, only.Material));
+                    only.Effect.Draw(new EffectDrawContext(this, src, dest, only.Settings, only.Material, Camera));
                 }
                 else
                 {
                     only.Effect.ApplySettings(only.Settings, only.Material);
-                    Graphics.Blit(src, dest, only.Material);
+                    BlitScoped(src, dest, _camera, only.Material);
                 }
                 return;
             }
@@ -581,7 +653,7 @@ public Vector2 BloomDirection = Vector2.one;
             {
                 if (active.Effect.Draw != null)
                 {
-                    active.Effect.Draw(new EffectDrawContext(this, current, temp, active.Settings, active.Material));
+                    active.Effect.Draw(new EffectDrawContext(this, current, temp, active.Settings, active.Material, Camera));
                 }
                 else
                 {
@@ -592,7 +664,7 @@ public Vector2 BloomDirection = Vector2.one;
                 (current, temp) = (temp, current);
             }
 
-            Graphics.Blit(current, dest);
+            BlitScoped(current, dest, _camera, null);
             RenderTexture.ReleaseTemporary(temp);
         }
 
