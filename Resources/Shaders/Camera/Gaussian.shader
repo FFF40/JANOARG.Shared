@@ -1,4 +1,4 @@
-Shader "JANOARG/Effects/Bloom"
+Shader "JANOARG/Effects/Gaussian"
 {
     Properties
     {

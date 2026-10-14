@@ -11,6 +11,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         ChromaticAberration,
         FishEye,
         Glitch,
+        Glitch2,
         Greyscale,
         HueShift,
         Inversion,
@@ -19,7 +20,11 @@ namespace JANOARG.Shared.Data.ChartInfo
         Reflections,
         Retro,
         SplitScreen,
-        Vignette
+        Vignette,
+        GaussianBlur,
+        MotionBlur,
+        ZoomBlur,
+        RadialBlur
     }
 
     [Serializable]
@@ -48,8 +53,19 @@ public Vector2 BloomDirection = Vector2.one;
         [Range(0f, 1f)] public float StrengthY = 0.1f;
         [Range(0f, 1f)] public float BlockSize = 0.5f;
 
-        // Reflections-specific
-        [Range(0f, 1f)] public float Scale = 0.1f;
+// Reflections-specific
+[Range(0f, 1f)] public float Scale = 0.1f;
+
+        // Glitch2-specific
+        [Range(0f, 1f)] public float GlitchAmount = 0.1f;
+        [Range(0f, 1f)] public float GlitchSpeed  = 0.5f;
+
+        // ZoomBlur / RadialBlur-specific. The centre is stored top-left origin to match the
+        // rest of the chart, and flipped to GL's bottom-left origin on the way to the shader.
+        public Vector2 BlurCentre = new(0.5f, 0.5f);
+
+        // MotionBlur-specific, in degrees.
+        [Range(0f, 360f)] public float BlurAngle;
 
         /// <summary>Required by Unity's serializer and by any XmlSerializer/JsonUtility round-trip.</summary>
         public EffectSettings() {}
@@ -72,7 +88,11 @@ public Vector2 BloomDirection = Vector2.one;
             SplitsY       = SplitsY,
             StrengthY     = StrengthY,
             BlockSize     = BlockSize,
-            Scale         = Scale
+            Scale         = Scale,
+            GlitchAmount  = GlitchAmount,
+            GlitchSpeed   = GlitchSpeed,
+            BlurCentre    = BlurCentre,
+            BlurAngle     = BlurAngle
         };
     }
 
@@ -117,12 +137,16 @@ public Vector2 BloomDirection = Vector2.one;
         internal static readonly int SplitsX        = Shader.PropertyToID("_SplitsX");
         internal static readonly int SplitsY        = Shader.PropertyToID("_SplitsY");
         internal static readonly int FilterTimeId   = Shader.PropertyToID("_FilterTime");
+        internal static readonly int AmountId        = Shader.PropertyToID("_Amount");
+        internal static readonly int SpeedId         = Shader.PropertyToID("_Speed");
+        internal static readonly int PositionId      = Shader.PropertyToID("_Position");
+        internal static readonly int SigmaBlurId     = Shader.PropertyToID("_Sigma");
 
         static Effect()
         {
             sEffects = new Effect[Enum.GetValues(typeof(EffectType)).Length];
 
-            Register(EffectType.Bloom, apply: null, draw: BloomEffect.Draw);
+            Register(EffectType.Bloom, apply: null, draw: BloomEffect.Draw, BloomEffect.GaussianPath);
 
             Register(EffectType.ChromaticAberration, (settings, mat) =>
             {
@@ -196,9 +220,39 @@ public Vector2 BloomDirection = Vector2.one;
             {
                 mat.SetFloat(StrengthId, settings.Strength);
             });
+
+            Register(EffectType.Glitch2, (settings, mat) =>
+            {
+                mat.SetFloat(FilterTimeId, FilterTime);
+                mat.SetFloat(AmountId, settings.GlitchAmount);
+                mat.SetFloat(SpeedId, settings.GlitchSpeed);
+            });
+
+            // GaussianBlur and MotionBlur are multi-pass like Bloom, and share its kernel shader.
+            Register(EffectType.GaussianBlur, apply: null, draw: GaussianBlurEffect.Draw, resourcePath: BloomEffect.GaussianPath);
+            Register(EffectType.MotionBlur,   apply: null, draw: MotionBlurEffect.Draw,   resourcePath: BloomEffect.GaussianPath);
+
+            Register(EffectType.ZoomBlur, (settings, mat) =>
+            {
+                mat.SetVector(PositionId, ToGlCentre(settings.BlurCentre));
+                mat.SetFloat(SigmaBlurId, settings.Strength / 2f + 0.5f);
+            });
+
+            Register(EffectType.RadialBlur, (settings, mat) =>
+            {
+                mat.SetVector(PositionId, ToGlCentre(settings.BlurCentre));
+                mat.SetFloat(SigmaBlurId, settings.Strength / 4f + 0.5f);
+            });
         }
 
-        static void Register(EffectType type, Action<EffectSettings, Material> apply, Action<EffectDrawContext> draw = null)
+        /// <summary>
+        /// The chart works in a top-left origin; GL samples bottom-left. fluXis folds the flip into
+        /// the centre it sends to the shader, and so do we, so the centre field stays in the same
+        /// coordinate space as everything else in the editor.
+        /// </summary>
+        static Vector4 ToGlCentre(Vector2 centre) => new(centre.x, 1f - centre.y, 0f, 0f);
+
+        static void Register(EffectType type, Action<EffectSettings, Material> apply, Action<EffectDrawContext> draw = null, string resourcePath = null)
         {
             int index = (int)type;
             if (index < 0 || index >= sEffects.Length)
@@ -210,7 +264,7 @@ public Vector2 BloomDirection = Vector2.one;
             sEffects[index] = new Effect
             {
                 Type          = type,
-                ResourcePath  = DefaultResourcePath + type.ToString(),
+                ResourcePath  = resourcePath ?? DefaultResourcePath + type.ToString(),
                 ApplySettings = apply,
                 Draw          = draw
             };
@@ -274,170 +328,106 @@ public Vector2 BloomDirection = Vector2.one;
     }
 
     /// <summary>
-    /// Bloom, ported from fluXis's BloomShaderStep.
-    ///
-    /// It cannot be a single blit: fluXis blurs separably (horizontal then vertical) at half
-    /// resolution and then adds the result back onto the scene, rather than replacing the frame
-    /// with it. Doing only one axis, or replacing instead of adding, gives a directional smear
-    /// that darkens the image — which is what this port did before.
-    ///
-    /// Strength drives everything, as in fluXis: it sets the gaussian sigma, and it is also the
-    /// intensity the blurred frame is added at.
+    /// Half-resolution scratch buffers for the effects built on the separable gaussian kernel —
+    /// Bloom, GaussianBlur and MotionBlur all blur at half scale first, exactly as fluXis does,
+    /// and pay for it in sharpness rather than in bandwidth.
     /// </summary>
-    public static class BloomEffect
+    public class BlurBuffers : IDisposable
     {
-        const float MaxSigma = 20f;
-        const float BufferScale = 0.5f;
+        public RenderTexture HalfA;
+        public RenderTexture HalfB;
 
-        /// <summary>Per-renderer scratch buffers. Reallocated whenever the source size changes.</summary>
-        class Buffers : IDisposable
+        Material _compose;
+        string   _composePath;
+
+        int _width, _height;
+
+        public void Ensure(RenderTexture src)
         {
-            public RenderTexture HalfA;
-            public RenderTexture HalfB;
-            public Material Compose;
+            int width  = Mathf.CeilToInt(src.width  * GaussianKernel.BufferScale);
+            int height = Mathf.CeilToInt(src.height * GaussianKernel.BufferScale);
 
-            int _width, _height;
+            if (HalfA != null && HalfA.width == width && HalfA.height == height) return;
 
-            public void Ensure(RenderTexture src)
-            {
-                int width  = Mathf.CeilToInt(src.width  * BufferScale);
-                int height = Mathf.CeilToInt(src.height * BufferScale);
+            ReleaseBuffers();
 
-                if (HalfA != null && HalfA.width == width && HalfA.height == height) return;
+            HalfA = NewBuffer(width, height, src);
+            HalfB = NewBuffer(width, height, src);
+            HalfA.Create();
+            HalfB.Create();
 
-                ReleaseBuffers();
-
-                HalfA = new RenderTexture(width, height, 0, src.format, src.sRGB ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Default)
-                {
-                    hideFlags = HideFlags.HideAndDontSave,
-                    filterMode = FilterMode.Bilinear,
-                    wrapMode   = TextureWrapMode.Clamp
-                };
-                // The copy constructor carries the descriptor over but not the hide flags.
-                HalfB = new RenderTexture(HalfA) { hideFlags = HideFlags.HideAndDontSave };
-                HalfA.Create();
-                HalfB.Create();
-
-                _width = width;
-                _height = height;
-            }
-
-            /// <summary>
-            /// Matches Unity's _MainTex_TexelSize convention: xy is the target size in pixels,
-            /// zw its reciprocal. The shader divides by xy, so it has to be pixels — passing the
-            /// reciprocal instead scales each tap by the buffer width and smears the frame edge
-            /// across the whole viewport.
-            /// </summary>
-            public Vector4 TexelSize => new(_width, _height, 1f / _width, 1f / _height);
-
-            void ReleaseBuffers()
-            {
-                if (HalfA != null) { HalfA.Release(); UnityEngine.Object.DestroyImmediate(HalfA); HalfA = null; }
-                if (HalfB != null) { HalfB.Release(); UnityEngine.Object.DestroyImmediate(HalfB); HalfB = null; }
-            }
-
-            public void Dispose()
-            {
-                ReleaseBuffers();
-
-                if (Compose != null) { UnityEngine.Object.DestroyImmediate(Compose); Compose = null; }
-            }
+            _width  = width;
+            _height = height;
         }
+
+        static RenderTexture NewBuffer(int width, int height, RenderTexture src) =>
+            new(width, height, 0, src.format, src.sRGB ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Default)
+            {
+                hideFlags  = HideFlags.HideAndDontSave,
+                filterMode = FilterMode.Bilinear,
+                wrapMode   = TextureWrapMode.Clamp
+            };
+
+        /// <summary>Matches Unity's _MainTex_TexelSize convention: xy is pixels, zw the reciprocal.</summary>
+        public Vector4 TexelSize => new(_width, _height, 1f / _width, 1f / _height);
 
         /// <summary>
-        /// Echoes the values that decide how far each blur tap lands. Wrong here and the kernel
-        /// samples outside the texture, which reads back as whatever the render target happened
-        /// to contain rather than as an error.
+        /// The pass that turns a blurred buffer back into the frame. Obtained by path so that
+        /// Bloom's additive compose and the dither passes the other two use can share the buffers.
         /// </summary>
-        public static void Describe(EffectSettings settings, Material blur, System.Text.StringBuilder report)
+        public Material GetCompose(string resourcePath)
         {
-            float strength = settings.Strength;
-            float downsampleScale = Mathf.Max(0.5f, 1f - strength * 0.75f);
-            float sigma = MaxSigma * strength * downsampleScale;
-            int radius = KernelSize(sigma);
+            if (_compose != null && _composePath == resourcePath) return _compose;
 
-            float directionX = 0f, directionY = 0f;
-            if (blur != null && blur.HasProperty(Effect.BlurDirectionId))
+            if (_compose != null) { UnityEngine.Object.DestroyImmediate(_compose); _compose = null; }
+
+            Shader shader = Resources.Load<Shader>(resourcePath);
+            if (shader == null)
             {
-                Vector2 last = blur.GetVector(Effect.BlurDirectionId);
-                directionX = last.x;
-                directionY = last.y;
+                Debug.LogError($"[CameraFilters] Missing shader at \"{resourcePath}\".");
+                return null;
             }
 
-            report.Append($" | sigma {sigma:F3} radius {radius} texel {blur?.GetVector(Effect.TexSizeId)}");
-            report.Append($" axes ({directionX:F0},{directionY:F0}) threshold {settings.BloomThreshold:F2}");
+            _compose     = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
+            _composePath = resourcePath;
+            return _compose;
         }
 
-        public static void Draw(EffectDrawContext context)
+        void ReleaseBuffers()
         {
-            Buffers buffers = context.Manager.EffectResource(EffectType.Bloom, () => new Buffers());
-            if (buffers == null) return;
-
-            buffers.Ensure(context.Src);
-
-            float strength = context.Settings.Strength;
-
-            // fluXis: sigma = max_sigma * Strength * downsampleScale. Both ends of the range
-            // matter — the floor keeps sigma from collapsing before the kernel is meaningful.
-            float downsampleScale = Mathf.Max(0.5f, 1f - strength * 0.75f);
-            float sigma = MaxSigma * strength * downsampleScale;
-            int radius = KernelSize(sigma);
-
-            Material blur = context.Material;
-            blur.SetInt(Effect.RadiusId, radius);
-            blur.SetFloat(Effect.SigmaId, sigma);
-            blur.SetVector(Effect.TexSizeId, buffers.TexelSize);
-
-            Vector2 axes = context.Settings.BloomDirection;
-
-            // Horizontal, then vertical — fluXis runs both unconditionally. BloomDirection is
-            // kept as an axis mask so a caller can deliberately blur one way only.
-            RenderTexture blurred = context.Src;
-
-            if (axes.x != 0f)
-            {
-                blur.SetVector(Effect.BlurDirectionId, Vector2.right);
-                Graphics.Blit(context.Src, buffers.HalfA, blur);
-                blurred = buffers.HalfA;
-            }
-
-            if (axes.y != 0f)
-            {
-                blur.SetVector(Effect.BlurDirectionId, Vector2.up);
-                Graphics.Blit(blurred, buffers.HalfB, blur);
-                blurred = buffers.HalfB;
-            }
-
-            // Both axes masked off — there is nothing to add, so leave the frame alone rather
-            // than compositing in a buffer that was never written this frame.
-            if (blurred == context.Src) return;
-
-            if (buffers.Compose == null)
-            {
-                Shader compose = Resources.Load<Shader>(Effect.DefaultResourcePath + "BloomCompose");
-                if (compose == null)
-                {
-                    Debug.LogError($"[CameraFilters] Missing shader at \"{Effect.DefaultResourcePath}BloomCompose\". Bloom will not render.");
-                    return;
-                }
-
-                buffers.Compose = new Material(compose) { hideFlags = HideFlags.HideAndDontSave };
-            }
-
-            buffers.Compose.SetFloat(Effect.StrengthId, strength);
-            buffers.Compose.SetFloat(Effect.ThresholdId, context.Settings.BloomThreshold);
-            buffers.Compose.SetTexture(Effect.AdditiveTexId, blurred);
-            Graphics.Blit(context.Src, context.Dest, buffers.Compose);
-
+            if (HalfA != null) { HalfA.Release(); UnityEngine.Object.DestroyImmediate(HalfA); HalfA = null; }
+            if (HalfB != null) { HalfB.Release(); UnityEngine.Object.DestroyImmediate(HalfB); HalfB = null; }
         }
 
-        /// <summary>
-        /// osu.Framework's Blur.KernelSize: how far the gaussian is still within
-        /// <paramref name="cutoffThreshold"/> of its peak.
-        /// </summary>
-        public static int KernelSize(float sigma, float cutoffThreshold = 0.1f)
+        public void Dispose()
         {
-            if (sigma == 0) return 0;
+            ReleaseBuffers();
+            if (_compose != null) { UnityEngine.Object.DestroyImmediate(_compose); _compose = null; }
+        }
+    }
+
+    /// <summary>The separable gaussian the three kernel-based effects share, plus its radius maths.</summary>
+    public static class GaussianKernel
+    {
+        public const float BufferScale = 0.5f;
+
+        /// <summary>Sets the kernel up for one axis and hands back the blur target.</summary>
+        public static RenderTexture Axis(EffectDrawContext context, BlurBuffers buffers, float sigma, Vector2 direction, RenderTexture source)
+        {
+            context.Material.SetFloat(Effect.SigmaId, sigma);
+            context.Material.SetInt(Effect.RadiusId, Radius(sigma));
+            context.Material.SetVector(Effect.TexSizeId, buffers.TexelSize);
+            context.Material.SetVector(Effect.BlurDirectionId, direction);
+
+            Graphics.Blit(source, buffers.HalfA, context.Material);
+            return buffers.HalfA;
+        }
+
+        /// <summary>finXis's Blur.KernelSize: how far the gaussian is still within
+        /// <paramref name="cutoffThreshold"/> of its peak.</summary>
+        public static int Radius(float sigma, float cutoffThreshold = 0.1f)
+        {
+            if (sigma <= 0f) return 0;
 
             const int maxRadius = 200;
 
@@ -456,6 +446,151 @@ public Vector2 BloomDirection = Vector2.one;
             return invSqrt2Pi * Math.Exp(-0.5 * x * x / (sigma * sigma)) / sigma;
         }
     }
+
+    /// <summary>
+    /// Bloom, ported from fluXis's BloomShaderStep.
+    ///
+    /// It cannot be a single blit: fluXis blurs separably (horizontal then vertical) at half
+    /// resolution and then adds the result back onto the scene, rather than replacing the frame
+    /// with it. Doing only one axis, or replacing instead of adding, gives a directional smear
+    /// that darkens the image.
+    ///
+    /// Strength drives everything, as in fluXis: it sets the gaussian sigma, and it is also the
+    /// intensity the blurred frame is added at.
+    /// </summary>
+    public static class BloomEffect
+    {
+        const float MaxSigma = 20f;
+
+        /// <summary>The separable kernel lives in one shader shared with GaussianBlur and MotionBlur.</summary>
+        public const string GaussianPath = Effect.DefaultResourcePath + "Gaussian";
+
+        public static void Describe(EffectSettings settings, Material blur, System.Text.StringBuilder report)
+        {
+            float strength = settings.Strength;
+            float sigma = MaxSigma * strength * Mathf.Max(0.5f, 1f - strength * 0.75f);
+
+            Vector2 last = Vector2.zero;
+            if (blur != null && blur.HasProperty(Effect.BlurDirectionId))
+                last = blur.GetVector(Effect.BlurDirectionId);
+
+            report.Append($" | sigma {sigma:F3} radius {GaussianKernel.Radius(sigma)} " +
+                          $"texel {blur?.GetVector(Effect.TexSizeId)} axes ({last.x:F0},{last.y:F0}) " +
+                          $"threshold {settings.BloomThreshold:F2}");
+        }
+
+        public static void Draw(EffectDrawContext context)
+        {
+            BlurBuffers buffers = context.Manager.EffectResource(EffectType.Bloom, () => new BlurBuffers());
+            if (buffers == null) return;
+
+            buffers.Ensure(context.Src);
+
+            float strength = context.Settings.Strength;
+
+            // fluXis: sigma = max_sigma * Strength * downsampleScale. Both ends of the range
+            // matter — the floor keeps sigma from collapsing before the kernel is meaningful.
+            float downsampleScale = Mathf.Max(0.5f, 1f - strength * 0.75f);
+            float sigma = MaxSigma * strength * downsampleScale;
+
+            Vector2 axes = context.Settings.BloomDirection;
+            RenderTexture blurred = context.Src;
+
+            // Horizontal, then vertical. BloomDirection is honoured as an axis mask so a caller
+            // can deliberately blur one way only.
+            if (axes.x != 0f) blurred = GaussianKernel.Axis(context, buffers, sigma, Vector2.right, context.Src);
+
+            if (axes.y != 0f)
+            {
+                Graphics.Blit(blurred, buffers.HalfB, context.Material);
+                blurred = buffers.HalfB;
+            }
+
+            // Both axes masked off — there is nothing to add, so leave the frame alone rather
+            // than compositing in a buffer that was never written this frame.
+            if (blurred == context.Src) return;
+
+            Material compose = buffers.GetCompose(Effect.DefaultResourcePath + "BloomCompose");
+            if (compose == null) return;
+
+            compose.SetFloat(Effect.StrengthId, strength);
+            compose.SetFloat(Effect.ThresholdId, context.Settings.BloomThreshold);
+            compose.SetTexture(Effect.AdditiveTexId, blurred);
+            Graphics.Blit(context.Src, context.Dest, compose);
+        }
+    }
+
+    /// <summary>
+    /// GaussianBlur, ported from fluXis's GaussianBlurStep. Same separable kernel and half-res
+    /// buffers as Bloom, but the blurred frame replaces the scene instead of being added to it,
+    /// with a dither pass on the way out to keep the wide low-contrast result from banding.
+    /// </summary>
+    public static class GaussianBlurEffect
+    {
+        const float MaxSigma = 32f;
+        const float MinScale = 0.5f;
+
+        public static void Draw(EffectDrawContext context)
+        {
+            BlurBuffers buffers = context.Manager.EffectResource(EffectType.GaussianBlur, () => new BlurBuffers());
+            if (buffers == null) return;
+
+            buffers.Ensure(context.Src);
+
+            float strength = context.Settings.Strength;
+            if (strength <= 0f) return;
+
+            float sigma = MaxSigma * strength * Mathf.Max(MinScale, 1f - strength);
+
+            RenderTexture blurred = GaussianKernel.Axis(context, buffers, sigma, Vector2.right, context.Src);
+            Graphics.Blit(blurred, buffers.HalfB, context.Material);
+
+            Dither(context, buffers, blurred, strength * 6f);
+        }
+
+        internal static void Dither(EffectDrawContext context, BlurBuffers buffers, RenderTexture blurred, float strength)
+        {
+            Material dither = buffers.GetCompose(Effect.DefaultResourcePath + "Dither");
+            if (dither == null) return;
+
+            dither.SetFloat(Effect.StrengthId, strength);
+            Graphics.Blit(blurred, context.Dest, dither);
+        }
+    }
+
+    /// <summary>
+    /// MotionBlur, ported from fluXis's MotionBlurStep. The same gaussian kernel as Bloom, but
+    /// swept along an arbitrary angle twice rather than once per axis, at half resolution.
+    /// </summary>
+    public static class MotionBlurEffect
+    {
+        const float MaxSigma = 45f;
+        const float MinScale = 0.4f;
+
+        public static void Draw(EffectDrawContext context)
+        {
+            BlurBuffers buffers = context.Manager.EffectResource(EffectType.MotionBlur, () => new BlurBuffers());
+            if (buffers == null) return;
+
+            buffers.Ensure(context.Src);
+
+            float strength = context.Settings.Strength;
+            if (strength <= 0f) return;
+
+            float sigma = MaxSigma * strength * Mathf.Max(MinScale, 1f - strength);
+
+            float radians = context.Settings.BlurAngle * Mathf.Deg2Rad;
+            Vector2 direction = new(Mathf.Cos(radians), Mathf.Sin(radians));
+
+            // Two passes along the same axis. fluXis does the same: repeating a directional
+            // gaussian widens it, which is the point.
+            GaussianKernel.Axis(context, buffers, sigma, direction, context.Src);
+            Graphics.Blit(buffers.HalfA, buffers.HalfB, context.Material);
+
+            GaussianBlurEffect.Dither(context, buffers, buffers.HalfB, strength * 8f);
+        }
+    }
+
 
     /// <summary>
     /// Runs an ordered stack of camera effects over everything its camera renders.
