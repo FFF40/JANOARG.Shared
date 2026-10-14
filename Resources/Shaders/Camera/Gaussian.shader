@@ -1,0 +1,85 @@
+Shader "JANOARG/Effects/Gaussian"
+{
+    Properties
+    {
+        _MainTex ("Texture", 2D) = "white" {}
+        _BlurDirection ("Blur Direction", Vector) = (1, 0, 0, 0)
+
+        // These must be declared here, not just in the shader body: Material.SetFloat/SetVector
+        // only reach uniforms the Properties block exposes. Left out, sigma arrives as 0 and the
+        // kernel divides by zero.
+        _Radius ("Blur Radius", Int) = 21
+        _Sigma ("Blur Sigma", Float) = 10
+        _TexSize ("Sample Target Size", Vector) = (1, 1, 1, 1)
+    }
+    SubShader
+    {
+        // Post-processing shaders should have these settings
+        Cull Off
+        ZWrite Off
+        ZTest Always
+
+        Pass
+        {
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment frag
+            #include "UnityCG.cginc"
+
+            sampler2D _MainTex;
+
+            // xy = target size in pixels, zw = its reciprocal.
+            //
+            // Deliberately not _MainTex_TexelSize: Graphics.Blit rewrites that uniform from the
+            // source on every call, so the half-resolution target this pass samples against could
+            // not be expressed through it. This one is ours to set.
+            float4 _TexSize;
+
+            int _Radius;
+            float _Sigma;
+            float2 _BlurDirection;
+
+            #define INV_SQRT_2PI 0.39894
+
+            float computeGauss(float x, float sigma)
+            {
+                // At zero sigma both the exponent and the divisor degenerate, and the whole kernel
+                // comes back NaN. The correct limit is the centre tap alone, which is what the
+                // caller gets anyway once the loop breaks on its first iteration.
+                if (sigma <= 1e-4) return x <= 0.0 ? 1.0 : 0.0;
+
+                return INV_SQRT_2PI * exp(-0.5 * x * x / (sigma * sigma)) / sigma;
+            }
+
+            float4 blur(int radius, float2 direction, float2 texCoord, float2 texSize, float sigma)
+            {
+                float factor = computeGauss(0.0, sigma);
+                float4 sum = tex2D(_MainTex, texCoord) * factor;
+
+                float totalFactor = factor;
+
+                for (int i = 2; i <= 200; i += 2)
+                {
+                    float x = float(i) - 0.5;
+                    factor = computeGauss(x, sigma) * 2.0;
+                    totalFactor += 2.0 * factor;
+
+                    sum += tex2D(_MainTex, texCoord + direction * x / texSize) * factor;
+                    sum += tex2D(_MainTex, texCoord - direction * x / texSize) * factor;
+
+                    if (i >= radius) break;
+                }
+
+                return sum / totalFactor;
+            }
+
+            fixed4 frag (v2f_img i) : SV_Target
+            {
+                float4 blurColour = blur(_Radius, _BlurDirection, i.uv, _TexSize.xy, _Sigma);
+
+                return blurColour;
+            }
+            ENDCG
+        }
+    }
+}
