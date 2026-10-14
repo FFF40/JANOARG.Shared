@@ -539,7 +539,11 @@ public Vector2 BloomDirection = Vector2.one;
 
         void OnEnable() => BuildMaterials();
 
-        void OnDestroy() => ReleaseMaterials();
+        void OnDestroy()
+        {
+            SetHdrOverridden(false);
+            ReleaseMaterials();
+        }
 
         /// <summary>
         /// Unity only routes a camera through the OnRenderImage intermediate while this component
@@ -553,8 +557,41 @@ public Vector2 BloomDirection = Vector2.one;
         public void SyncActivity()
         {
             _loggedFrames = 0;
-            enabled = HasActiveEffects;
+
+            bool active = HasActiveEffects;
+            SetHdrOverridden(active);
+            enabled = active;
         }
+
+        bool _hdrOverridden;
+
+        /// <summary>
+        /// Turns camera HDR off while the chain is running and puts it back afterwards.
+        ///
+        /// Nothing this view draws exceeds 1.0 — the lane, hit and highlight shaders all return
+        /// plain albedo and alpha, and there is no tonemapping anywhere in the chain. HDR
+        /// therefore buys nothing here, but it does force the hook's intermediate to ARGBHalf
+        /// instead of BGRA8, doubling the bandwidth of every pass for values nobody produces.
+        /// </summary>
+        void SetHdrOverridden(bool disable)
+        {
+            Camera cam = Camera;
+            if (cam == null || _hdrOverridden == disable) return;
+
+            if (disable)
+            {
+                _hdrWasAllowed  = cam.allowHDR;
+                cam.allowHDR    = false;
+                _hdrOverridden  = true;
+            }
+            else
+            {
+                cam.allowHDR   = _hdrWasAllowed;
+                _hdrOverridden = false;
+            }
+        }
+
+        bool _hdrWasAllowed;
 
         int _loggedFrames;
 
