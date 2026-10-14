@@ -2,6 +2,7 @@ Shader "JANOARG/Effects/Glitch"
 {
     Properties
     {
+        _FilterTime ("Filter Time", Float) = 0
         _MainTex ("Texture", 2D) = "white" {}
         _StrengthX ("Glitch Strength X", Range(0, 1)) = 0.1
         _StrengthY ("Glitch Strength Y", Range(0, 1)) = 0.1

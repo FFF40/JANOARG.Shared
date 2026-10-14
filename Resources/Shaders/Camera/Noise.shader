@@ -2,6 +2,7 @@ Shader "JANOARG/Effects/Noise"
 {
     Properties
     {
+        _FilterTime ("Filter Time", Float) = 0
         _MainTex ("Texture", 2D) = "white" {}
         _Strength ("Noise Strength", Range(0, 1)) = 0.5
     }

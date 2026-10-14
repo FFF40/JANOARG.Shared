@@ -4,6 +4,13 @@ Shader "JANOARG/Effects/Bloom"
     {
         _MainTex ("Texture", 2D) = "white" {}
         _BlurDirection ("Blur Direction", Vector) = (1, 0, 0, 0)
+
+        // These must be declared here, not just in the shader body: Material.SetFloat/SetVector
+        // only reach uniforms the Properties block exposes. Left out, sigma arrives as 0 and the
+        // kernel divides by zero.
+        _Radius ("Blur Radius", Int) = 21
+        _Sigma ("Blur Sigma", Float) = 10
+        _TexSize ("Sample Target Size", Vector) = (1, 1, 1, 1)
     }
     SubShader
     {

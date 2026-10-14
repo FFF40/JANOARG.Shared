@@ -2,7 +2,11 @@ Shader "JANOARG/Effects/BloomCompose"
 {
     Properties
     {
+        // As in Bloom.shader: anything the C# side writes has to be declared here to be settable.
         _MainTex ("Texture", 2D) = "white" {}
+        _AdditiveTex ("Bloom", 2D) = "black" {}
+        _Strength ("Strength", Float) = 0.5
+        _Threshold ("Threshold", Range(0, 1)) = 0.65
     }
     SubShader
     {
