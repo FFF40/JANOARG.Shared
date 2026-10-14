@@ -16,6 +16,8 @@ Shader "JANOARG/Effects/Mosaic"
             CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment frag
+            // tex2Dlod is not available below shader model 3.
+            #pragma target 3.0
             #include "UnityCG.cginc"
 
             sampler2D _MainTex;

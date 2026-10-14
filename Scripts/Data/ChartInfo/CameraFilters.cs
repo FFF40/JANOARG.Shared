@@ -137,8 +137,14 @@ public Vector2 BloomDirection = Vector2.one;
             Register(EffectType.Glitch, (settings, mat) =>
             {
                 mat.SetFloat(FilterTimeId, FilterTime);
-                mat.SetFloat(StrengthX, settings.Strength);
-                mat.SetFloat(StrengthY, settings.StrengthY);
+
+                // fluXis divides by ten before these reach the shader (Strength / 10f in
+                // GlitchShaderStep), because the shader treats them as a direct UV displacement
+                // of +/- 0.5. Sent raw, a slider at 1.0 shoves blocks half a screen sideways.
+                // The shader's own default of 0.1 is fluXis's effective maximum, which is the
+                // scale the port never applied.
+                mat.SetFloat(StrengthX, settings.Strength / 10f);
+                mat.SetFloat(StrengthY, settings.StrengthY / 10f);
                 mat.SetFloat(BlockSize, settings.BlockSize);
             });
 

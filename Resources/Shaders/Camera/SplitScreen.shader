@@ -27,10 +27,17 @@ Shader "JANOARG/Effects/SplitScreen"
 
             fixed4 frag (v2f_img i) : SV_Target
             {
-                float2 uv = i.uv;
-                float2 quad = trunc(uv * float2(_SplitsX, _SplitsY));
+                // The split counts come from chart data. The Range attribute on the C# side only
+                // constrains the inspector, so a hand-edited or deserialised value of 0 arrives
+                // intact — and 1/0 turns the lerp below into NaN across the whole frame, at every
+                // strength, because lerp multiplies the bad term by zero rather than skipping it.
+                int splitsX = max(1, _SplitsX);
+                int splitsY = max(1, _SplitsY);
 
-                float2 splitInv = float2(1.0 / _SplitsX, 1.0 / _SplitsY);
+                float2 uv = i.uv;
+                float2 quad = trunc(uv * float2(splitsX, splitsY));
+
+                float2 splitInv = float2(1.0 / splitsX, 1.0 / splitsY);
                 float2 zoom = lerp(float2(1.0, 1.0), splitInv, float2(_Strength, _Strength));
                 float2 offset = lerp(float2(0.0, 0.0), quad * splitInv, float2(_Strength, _Strength));
 

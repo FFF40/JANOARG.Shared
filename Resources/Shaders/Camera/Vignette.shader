@@ -31,7 +31,13 @@ Shader "JANOARG/Effects/Vignette"
                 float2 uv = i.uv;
                 uv = uv * (1.0 - uv.yx);
                 float vig = uv.x * uv.y * (1.0 - _Strength);
-                vig = pow(vig, _Strength);
+
+                // uv.x * uv.y is exactly 0 on all four borders, and pow(0, 0) is undefined —
+                // it evaluates as exp2(0 * log2(0)) and hands back NaN, which then poisons the
+                // lerp. Any positive strength already resolves pow(0, s) to 0, so returning 0
+                // here just matches that instead of exploding at the one slider value that
+                // happens to be 0.
+                vig = vig <= 0.0 ? 0.0 : pow(vig, _Strength);
 
                 // Mix with black
                 return lerp(colour, fixed4(0, 0, 0, 1), 1.0 - vig);
