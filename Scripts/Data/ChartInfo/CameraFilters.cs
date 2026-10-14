@@ -56,7 +56,8 @@ public Vector2 BloomDirection = Vector2.one;
 
         public EffectSettings(EffectType type)
         {
-            Type = type;
+            Type     = type;
+            Strength = Effect.DefaultStrength(type);
         }
 
         public EffectSettings Clone() => new(Type)
@@ -219,6 +220,22 @@ public Vector2 BloomDirection = Vector2.one;
         }
 
         public static IReadOnlyList<EffectType> AllTypes => (EffectType[])Enum.GetValues(typeof(EffectType));
+
+        /// <summary>
+        /// Where a freshly added effect starts.
+        ///
+        /// fluXis's vignette curve is left exactly as written, but it bases its falloff on a term
+        /// that peaks at 1/16 at the centre of the frame, so pow() drives it to zero almost
+        /// immediately: at strength 0.5 the exact centre is 82% black, at 0.25 it is 54%. fluXis
+        /// sets no default strength at all, so chart authors simply never go that high. Starting
+        /// the slider at 0.1 puts the centre at 25%, which is a vignette you can still see the
+        /// chart through.
+        /// </summary>
+        public static float DefaultStrength(EffectType type) => type switch
+        {
+            EffectType.Vignette => 0.1f,
+            _ => 0.5f
+        };
     }
 
     /// <summary>
