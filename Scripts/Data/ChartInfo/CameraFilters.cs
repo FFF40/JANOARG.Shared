@@ -399,6 +399,16 @@ public Vector2 BloomDirection = Vector2.one;
             buffers.Compose.SetFloat(Effect.ThresholdId, context.Settings.BloomThreshold);
             buffers.Compose.SetTexture(Effect.AdditiveTexId, blurred);
             Graphics.Blit(context.Src, context.Dest, buffers.Compose);
+
+            if (context.Manager.LogDiagnostics && context.Manager.NeedsProbe)
+            {
+                Debug.Log("[CameraFilters] BLOOM " +
+                          PostProcessingManager.Probe("halfA", buffers.HalfA) + " | " +
+                          PostProcessingManager.Probe("blurred", blurred) + " | " +
+                          $"compose _AdditiveTex bound {buffers.Compose.GetTexture(Effect.AdditiveTexId) != null} " +
+                          $"strength {buffers.Compose.GetFloat(Effect.StrengthId):F2} " +
+                          $"threshold {buffers.Compose.GetFloat(Effect.ThresholdId):F2}");
+            }
         }
 
         /// <summary>
@@ -553,8 +563,42 @@ public Vector2 BloomDirection = Vector2.one;
                 }
             }
 
+            report.Append("\n    IN  " + Probe("src", src));
+
             Debug.Log(report.ToString());
         }
+
+        /// <summary>Logs a few pixels off the middle of a target, before anything has had a chance to lie about it.</summary>
+        public static string Probe(string label, RenderTexture rt)
+        {
+            if (rt == null) return $"{label}: null";
+
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = rt;
+
+            Texture2D readback = new(rt.width, rt.height, TextureFormat.RGBAFloat, false);
+            readback.ReadPixels(new Rect(rt.width / 2f - 2, rt.height / 2f - 2, 4, 4), 0, 0);
+            readback.Apply();
+
+            RenderTexture.active = previous;
+
+            string result = $"{label} ({rt.width}x{rt.height}) " +
+                            $"{readback.GetPixel(1, 1)} {readback.GetPixel(2, 2)}";
+            DestroyImmediate(readback);
+            return result;
+        }
+
+        void LogResult(RenderTexture dest)
+        {
+            if (!LogDiagnostics || _loggedResults >= 3) return;
+            _loggedResults++;
+            Debug.Log($"[CameraFilters] OUT " + Probe("dest", dest));
+        }
+
+        int _loggedResults;
+
+        /// <summary>True while a run of pixel readbacks is still wanted, so per-effect probes do not spam.</summary>
+        public bool NeedsProbe => LogDiagnostics && _loggedResults < 3;
 
         void OnValidate()
         {
@@ -609,6 +653,7 @@ public Vector2 BloomDirection = Vector2.one;
             if (Bypass || _active.Count == 0)
             {
                 Graphics.Blit(src, dest);
+                LogResult(dest);
                 return;
             }
 
@@ -629,6 +674,7 @@ public Vector2 BloomDirection = Vector2.one;
                     only.Effect.ApplySettings(only.Settings, only.Material);
                     Graphics.Blit(src, dest, only.Material);
                 }
+                LogResult(dest);
                 return;
             }
 
@@ -656,6 +702,7 @@ public Vector2 BloomDirection = Vector2.one;
             }
 
             Graphics.Blit(current, dest);
+            LogResult(dest);
             RenderTexture.ReleaseTemporary(temp);
         }
 
