@@ -22,6 +22,9 @@ Shader "JANOARG/Effects/Glitch"
 
             sampler2D _MainTex;
             float4 _MainTex_TexelSize;
+            // Driven by PostProcessingManager so a render can be pinned to chart time instead of
+            // engine time. _Time would make every re-render of the same frame come out different.
+            float _FilterTime;
             float _StrengthX;
             float _StrengthY;
             float _BlockSize;
@@ -39,8 +42,8 @@ Shader "JANOARG/Effects/Glitch"
 
                 float2 blockUV = floor(i.uv * blockSizeInPixels) / blockSizeInPixels;
 
-                float randomShiftX = (random(blockUV, _Time.y) - 0.5) * _StrengthX;
-                float randomShiftY = (random(blockUV + float2(5.0, 5.0), _Time.y) - 0.5) * _StrengthY;
+                float randomShiftX = (random(blockUV, _FilterTime) - 0.5) * _StrengthX;
+                float randomShiftY = (random(blockUV + float2(5.0, 5.0), _FilterTime) - 0.5) * _StrengthY;
 
                 float2 fixedUV = i.uv;
                 fixedUV.x += randomShiftX;

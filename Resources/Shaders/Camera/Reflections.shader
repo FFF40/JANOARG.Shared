@@ -30,7 +30,13 @@ Shader "JANOARG/Effects/Reflections"
             {
                 // How many times the effect will iterate till it is barely visible, caps at 10
                 float samples = maxSamples;
-                if (_Strength != 1.0)
+                if (_Strength <= 0.0)
+                {
+                    // log(_Strength) is -inf at zero, and -inf/-inf hands back NaN, which then
+                    // poisons the whole accumulate below. No fade means no iteration.
+                    samples = 1.0;
+                }
+                else if (_Strength != 1.0)
                     samples = min(floor(log(threshold) / log(_Strength)) + 1.0, maxSamples);
 
                 float2 toCenter = i.uv - float2(0.5, 0.5);

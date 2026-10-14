@@ -3,12 +3,11 @@ Shader "JANOARG/Effects/Bloom"
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
-        _Radius ("Blur Radius", Range(1, 100)) = 50
-        _Sigma ("Blur Sigma", Range(0.1, 100)) = 50
         _BlurDirection ("Blur Direction", Vector) = (1, 0, 0, 0)
     }
     SubShader
     {
+        // Post-processing shaders should have these settings
         Cull Off
         ZWrite Off
         ZTest Always
@@ -21,7 +20,14 @@ Shader "JANOARG/Effects/Bloom"
             #include "UnityCG.cginc"
 
             sampler2D _MainTex;
-            float4 _MainTex_TexelSize;
+
+            // xy = target size in pixels, zw = its reciprocal.
+            //
+            // Deliberately not _MainTex_TexelSize: Graphics.Blit rewrites that uniform from the
+            // source on every call, so the half-resolution target this pass samples against could
+            // not be expressed through it. This one is ours to set.
+            float4 _TexSize;
+
             int _Radius;
             float _Sigma;
             float2 _BlurDirection;
@@ -57,9 +63,7 @@ Shader "JANOARG/Effects/Bloom"
 
             fixed4 frag (v2f_img i) : SV_Target
             {
-                float2 texSize = _MainTex_TexelSize.zw; // .zw contains width and height
-
-                float4 blurColour = blur(_Radius, _BlurDirection, i.uv, texSize, _Sigma);
+                float4 blurColour = blur(_Radius, _BlurDirection, i.uv, _TexSize.xy, _Sigma);
 
                 return blurColour;
             }

@@ -20,6 +20,9 @@ Shader "JANOARG/Effects/Noise"
 
             sampler2D _MainTex;
             float4 _MainTex_TexelSize;
+            // Driven by PostProcessingManager so a render can be pinned to chart time instead of
+            // engine time. _Time would make every re-render of the same frame come out different.
+            float _FilterTime;
             float _Strength;
 
             float random(float2 st, float size)
@@ -29,7 +32,7 @@ Shader "JANOARG/Effects/Noise"
                 if (st.x == 0.0) // to avoid a column of non-changing pixels
                     st = float2(0.4, st.y);
 
-                return frac(sin(dot(st.xy, float2(_Time.y, 78.233))) * 43758.5453123);
+                return frac(sin(dot(st.xy, float2(_FilterTime, 78.233))) * 43758.5453123);
             }
 
             fixed4 frag (v2f_img i) : SV_Target

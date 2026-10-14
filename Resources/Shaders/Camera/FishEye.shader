@@ -3,7 +3,7 @@ Shader "JANOARG/Effects/FishEye"
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
-        _Strength ("Fish Eye Strength", Range(-1, 1)) = 0.5
+        _Strength ("Fish Eye Strength", Range(0, 1)) = 0.5
     }
     SubShader
     {
@@ -32,6 +32,14 @@ Shader "JANOARG/Effects/FishEye"
                 float2 d = uv - 0.5;
                 float r = length(d);
 
+                // Two singularities to step around:
+                //  - at _Strength == 0 the tan()/atan() terms collapse to 0/0 and every
+                //    pixel in the frame comes back NaN, so "no distortion" short-circuits;
+                //  - exactly at the centre of the screen d is zero, and normalize() of a
+                //    zero vector is NaN, which would punch a hole through the middle pixel.
+                if (abs(_Strength) <= 1e-4 || r <= 1e-6)
+                    return uv;
+
                 if (_Strength > 0.0)
                 {
                     float fac = _Strength * PI * 0.5;
@@ -48,7 +56,7 @@ Shader "JANOARG/Effects/FishEye"
             fixed4 frag (v2f_img i) : SV_Target
             {
                 float2 fisheyeUV = FishEyeUV(i.uv);
-                fixed4 colour = tex2D(_MainTex, fisheyeUV);
+                fixed4 colour = tex2D(_MainTex, clamp(fisheyeUV, 0.0, 1.0));
 
                 return colour;
             }
