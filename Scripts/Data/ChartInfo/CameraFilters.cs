@@ -256,13 +256,19 @@ public Vector2 BloomDirection = Vector2.one;
         public Material Material;
         public PostProcessingManager Manager;
 
-        public EffectDrawContext(PostProcessingManager manager, RenderTexture src, RenderTexture dest, EffectSettings settings, Material material)
+        public EffectDrawContext()
+        {
+        }
+
+        /// <summary>Re-points this instance at one step of the chain and returns it.</summary>
+        public EffectDrawContext Bind(PostProcessingManager manager, RenderTexture src, RenderTexture dest, EffectSettings settings, Material material)
         {
             Manager  = manager;
             Src      = src;
             Dest     = dest;
             Settings = settings;
             Material = material;
+            return this;
         }
 
     }
@@ -480,6 +486,9 @@ public Vector2 BloomDirection = Vector2.one;
         Camera _camera;
         bool   _cameraResolved;
 
+        /// <summary>Reused across frames — the chain is sequential, so one is enough.</summary>
+        readonly EffectDrawContext _drawContext = new();
+
         Camera Camera
         {
             get
@@ -650,7 +659,7 @@ public Vector2 BloomDirection = Vector2.one;
 
                 if (only.Effect.Draw != null)
                 {
-                    only.Effect.Draw(new EffectDrawContext(this, src, dest, only.Settings, only.Material));
+                    only.Effect.Draw(_drawContext.Bind(this, src, dest, only.Settings, only.Material));
                 }
                 else
                 {
@@ -672,7 +681,7 @@ public Vector2 BloomDirection = Vector2.one;
             {
                 if (active.Effect.Draw != null)
                 {
-                    active.Effect.Draw(new EffectDrawContext(this, current, temp, active.Settings, active.Material));
+                    active.Effect.Draw(_drawContext.Bind(this, current, temp, active.Settings, active.Material));
                 }
                 else
                 {
