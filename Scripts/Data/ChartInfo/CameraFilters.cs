@@ -409,6 +409,9 @@ public Vector2 BloomDirection = Vector2.one;
         /// <summary>Drives _FilterTime for time-varying effects (Noise, Glitch). Null means use Unity's Time.time.</summary>
         public float? TimeOverride;
 
+        [Tooltip("Logs the camera viewport and intermediate size for the first few frames after the hook activates.")]
+        public bool LogDiagnostics;
+
         readonly Dictionary<EffectType, Material> _materials = new();
         readonly Dictionary<EffectType, IDisposable> _effectResources = new();
 
@@ -463,7 +466,33 @@ public Vector2 BloomDirection = Vector2.one;
         /// Driven from mutation sites rather than a tick: a disabled component does not receive
         /// Update, so it cannot re-enable itself.
         /// </summary>
-        public void SyncActivity() => enabled = HasActiveEffects;
+        public void SyncActivity()
+        {
+            _loggedFrames = 0;
+            enabled = HasActiveEffects;
+        }
+
+        int _loggedFrames;
+
+        /// <summary>
+        /// Reports what the hook is actually being handed. The number that matters is whether the
+        /// intermediate matches the camera viewport or the whole window: the camera only ever draws
+        /// into a sub-viewport, so a full-window intermediate means every blit is paying for
+        /// pixels nobody can see.
+        /// </summary>
+        void LogFrame(RenderTexture src)
+        {
+            if (!LogDiagnostics || _loggedFrames >= 3) return;
+            _loggedFrames++;
+
+            Camera cam = GetComponent<Camera>();
+            Debug.Log(
+                $"[CameraFilters] viewport {cam.pixelWidth}x{cam.pixelHeight} rect {cam.rect} | " +
+                $"intermediate {src.width}x{src.height} fmt {src.format} depth {src.depth} aa {src.antiAliasing} | " +
+                $"active {_active.Count} | screen {Screen.width}x{Screen.height} aa {QualitySettings.antiAliasing} | " +
+                $"{SystemInfo.graphicsDeviceName}"
+            );
+        }
 
         void OnValidate()
         {
@@ -512,6 +541,7 @@ public Vector2 BloomDirection = Vector2.one;
         {
             BuildMaterials();
             CollectActive();
+            LogFrame(src);
 
             if (Bypass || _active.Count == 0)
             {
