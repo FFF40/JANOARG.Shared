@@ -412,6 +412,9 @@ public Vector2 BloomDirection = Vector2.one;
         readonly Dictionary<EffectType, Material> _materials = new();
         readonly Dictionary<EffectType, IDisposable> _effectResources = new();
 
+        /// <summary>Resolved once per frame by CollectActive, so the passes do not repeat the lookups.</summary>
+        readonly List<ActiveEffect> _active = new();
+
         bool _materialsBuilt;
 
         /// <summary>
@@ -447,8 +450,20 @@ public Vector2 BloomDirection = Vector2.one;
             }
         }
 
-        void OnEnable()  => BuildMaterials();
-        void OnDisable() => ReleaseMaterials();
+        void OnEnable() => BuildMaterials();
+
+        void OnDestroy() => ReleaseMaterials();
+
+        /// <summary>
+        /// Unity only routes a camera through the OnRenderImage intermediate while this component
+        /// is enabled. Leaving it enabled for an empty stack costs an intermediate render target
+        /// and a full-screen blit every frame, whether or not any effect is on, so the hook takes
+        /// itself out of the pipeline when there is nothing to do.
+        ///
+        /// Driven from mutation sites rather than a tick: a disabled component does not receive
+        /// Update, so it cannot re-enable itself.
+        /// </summary>
+        public void SyncActivity() => enabled = HasActiveEffects;
 
         void OnValidate()
         {
@@ -456,6 +471,7 @@ public Vector2 BloomDirection = Vector2.one;
             // rather than just clearing the flag matters: BuildMaterials overwrites the dictionary
             // entries, which would otherwise orphan the old materials.
             ReleaseMaterials();
+            SyncActivity();
         }
 
         void BuildMaterials()
@@ -494,20 +510,70 @@ public Vector2 BloomDirection = Vector2.one;
 
         void OnRenderImage(RenderTexture src, RenderTexture dest)
         {
-            if (Bypass || !HasActiveEffects)
+            BuildMaterials();
+            CollectActive();
+
+            if (Bypass || _active.Count == 0)
             {
                 Graphics.Blit(src, dest);
                 return;
             }
 
-            BuildMaterials();
-
             Effect.FilterTime = TimeOverride ?? Time.time;
 
+            // Single effect goes straight into dest: one blit and no ping-pong buffer at all.
+            // That is the common case while tuning, and the temp target is the expensive part.
+            if (_active.Count == 1)
+            {
+                ActiveEffect only = _active[0];
+
+                if (only.Effect.Draw != null)
+                {
+                    only.Effect.Draw(new EffectDrawContext(this, src, dest, only.Settings, only.Material));
+                }
+                else
+                {
+                    only.Effect.ApplySettings(only.Settings, only.Material);
+                    Graphics.Blit(src, dest, only.Material);
+                }
+                return;
+            }
+
             RenderTexture current = src;
+
+            // depth 0: nothing in the chain samples depth, and passing src.depth would allocate a
+            // depth attachment on the temporary every frame.
             RenderTexture temp = RenderTexture.GetTemporary(
-                src.width, src.height, src.depth, src.format,
+                src.width, src.height, 0, src.format,
                 src.sRGB ? RenderTextureReadWrite.sRGB : RenderTextureReadWrite.Default);
+
+            foreach (ActiveEffect active in _active)
+            {
+                if (active.Effect.Draw != null)
+                {
+                    active.Effect.Draw(new EffectDrawContext(this, current, temp, active.Settings, active.Material));
+                }
+                else
+                {
+                    active.Effect.ApplySettings(active.Settings, active.Material);
+                    Graphics.Blit(current, temp, active.Material);
+                }
+
+                (current, temp) = (temp, current);
+            }
+
+            Graphics.Blit(current, dest);
+            RenderTexture.ReleaseTemporary(temp);
+        }
+
+        /// <summary>
+        /// Resolves the enabled entries once, so the frame does not repeat the dictionary and
+        /// enum lookups for every effect on every pass.
+        /// </summary>
+        void CollectActive()
+        {
+            _active.Clear();
+            if (Effects == null) return;
 
             foreach (EffectSettings settings in Effects)
             {
@@ -517,23 +583,22 @@ public Vector2 BloomDirection = Vector2.one;
                 if (effect == null) continue;
                 if (!_materials.TryGetValue(settings.Type, out Material material) || material == null) continue;
 
-                // Multi-pass effects own their whole step and leave the result in Dest.
-                if (effect.Draw != null)
-                {
-                    effect.Draw(new EffectDrawContext(this, current, temp, settings, material));
-                    (current, temp) = (temp, current);
-                    continue;
-                }
-
-                effect.ApplySettings(settings, material);
-
-                Graphics.Blit(current, temp, material);
-                (current, temp) = (temp, current);
+                _active.Add(new ActiveEffect(settings, effect, material));
             }
+        }
 
-            // With nothing blitted the ping-pong never happened, so `current` is still src.
-            Graphics.Blit(current, dest);
-            RenderTexture.ReleaseTemporary(temp);
+        readonly struct ActiveEffect
+        {
+            public readonly EffectSettings Settings;
+            public readonly Effect Effect;
+            public readonly Material Material;
+
+            public ActiveEffect(EffectSettings settings, Effect effect, Material material)
+            {
+                Settings = settings;
+                Effect   = effect;
+                Material = material;
+            }
         }
 
         /// <summary>Adds or replaces an effect in the stack. Passing null for settings removes the entry.</summary>
@@ -548,6 +613,7 @@ public Vector2 BloomDirection = Vector2.one;
             else list.Add(settings);
 
             Effects = list.ToArray();
+            SyncActivity();
         }
 
         public EffectSettings GetEffect(EffectType type)
@@ -560,6 +626,7 @@ public Vector2 BloomDirection = Vector2.one;
         {
             if (Effects == null) return;
             Effects = Array.FindAll(Effects, x => x.Type != type);
+            SyncActivity();
         }
     }
 }
