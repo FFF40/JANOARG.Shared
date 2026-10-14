@@ -35,6 +35,7 @@ namespace JANOARG.Shared.Data.ChartInfo
 // BloomSigma and BloomRadius are retained from the original port but are no longer read: fluXis
 // derives the kernel radius from the sigma, and derives the sigma from Strength. Setting them
 // does nothing. BloomDirection is honoured as an axis mask — (1,0) blurs horizontally only.
+[Range(0f, 1f)] public float BloomThreshold = 0.65f;
 [Range(1, 100)] public int BloomRadius = 50;
 [Range(0.1f, 100f)] public float BloomSigma = 50f;
 public Vector2 BloomDirection = Vector2.one;
@@ -62,6 +63,7 @@ public Vector2 BloomDirection = Vector2.one;
         {
             Enabled       = Enabled,
             Strength      = Strength,
+            BloomThreshold = BloomThreshold,
             BloomRadius   = BloomRadius,
             BloomSigma    = BloomSigma,
             BloomDirection = BloomDirection,
@@ -106,6 +108,7 @@ public Vector2 BloomDirection = Vector2.one;
         internal static readonly int BlurDirectionId = Shader.PropertyToID("_BlurDirection");
         internal static readonly int TexSizeId      = Shader.PropertyToID("_TexSize");
         internal static readonly int AdditiveTexId  = Shader.PropertyToID("_AdditiveTex");
+        internal static readonly int ThresholdId    = Shader.PropertyToID("_Threshold");
         internal static readonly int StrengthX      = Shader.PropertyToID("_StrengthX");
         internal static readonly int StrengthY      = Shader.PropertyToID("_StrengthY");
         internal static readonly int BlockSize      = Shader.PropertyToID("_BlockSize");
@@ -320,6 +323,30 @@ public Vector2 BloomDirection = Vector2.one;
             }
         }
 
+        /// <summary>
+        /// Echoes the values that decide how far each blur tap lands. Wrong here and the kernel
+        /// samples outside the texture, which reads back as whatever the render target happened
+        /// to contain rather than as an error.
+        /// </summary>
+        public static void Describe(EffectSettings settings, Material blur, System.Text.StringBuilder report)
+        {
+            float strength = settings.Strength;
+            float downsampleScale = Mathf.Max(0.5f, 1f - strength * 0.75f);
+            float sigma = MaxSigma * strength * downsampleScale;
+            int radius = KernelSize(sigma);
+
+            float directionX = 0f, directionY = 0f;
+            if (blur != null && blur.HasProperty(Effect.BlurDirectionId))
+            {
+                Vector2 last = blur.GetVector(Effect.BlurDirectionId);
+                directionX = last.x;
+                directionY = last.y;
+            }
+
+            report.Append($" | sigma {sigma:F3} radius {radius} texel {blur?.GetVector(Effect.TexSizeId)}");
+            report.Append($" axes ({directionX:F0},{directionY:F0}) threshold {settings.BloomThreshold:F2}");
+        }
+
         public static void Draw(EffectDrawContext context)
         {
             Buffers buffers = context.Manager.EffectResource(EffectType.Bloom, () => new Buffers());
@@ -377,6 +404,7 @@ public Vector2 BloomDirection = Vector2.one;
             }
 
             buffers.Compose.SetFloat(Effect.StrengthId, strength);
+            buffers.Compose.SetFloat(Effect.ThresholdId, context.Settings.BloomThreshold);
             buffers.Compose.SetTexture(Effect.AdditiveTexId, blurred);
             context.BlitFinal(context.Src, buffers.Compose);
         }
@@ -506,10 +534,10 @@ public Vector2 BloomDirection = Vector2.one;
         int _loggedFrames;
 
         /// <summary>
-        /// Reports what the hook is actually being handed. The number that matters is whether the
-        /// intermediate matches the camera viewport or the whole window: the camera only ever draws
-        /// into a sub-viewport, so a full-window intermediate means every blit is paying for
-        /// pixels nobody can see.
+        /// Reports what the hook is actually being handed. The numbers that matter are whether the
+        /// intermediate matches the camera viewport or the whole window, and whether each effect
+        /// was handed sane parameters — a gaussian sigma or texel size gone wrong produces
+        /// uninitialised texture reads long before it produces a visible error.
         /// </summary>
         void LogFrame(RenderTexture src)
         {
@@ -517,12 +545,23 @@ public Vector2 BloomDirection = Vector2.one;
             _loggedFrames++;
 
             Camera cam = Camera;
-            Debug.Log(
-                $"[CameraFilters] viewport {cam.pixelWidth}x{cam.pixelHeight} rect {cam.rect} | " +
-                $"intermediate {src.width}x{src.height} fmt {src.format} depth {src.depth} aa {src.antiAliasing} | " +
-                $"active {_active.Count} | screen {Screen.width}x{Screen.height} aa {QualitySettings.antiAliasing} | " +
-                $"{SystemInfo.graphicsDeviceName}"
-            );
+
+            System.Text.StringBuilder report = new();
+            report.Append($"[CameraFilters] viewport {cam.pixelWidth}x{cam.pixelHeight} rect {cam.rect} | ");
+            report.Append($"intermediate {src.width}x{src.height} fmt {src.format} aa {src.antiAliasing} | ");
+            report.Append($"screen {Screen.width}x{Screen.height} aa {QualitySettings.antiAliasing} | ");
+            report.Append($"{SystemInfo.graphicsDeviceName}");
+
+            foreach (ActiveEffect active in _active)
+            {
+                report.Append($"\n    {active.Effect.Type} strength {active.Settings.Strength:F2}");
+                if (active.Effect.Type == EffectType.Bloom)
+                {
+                    BloomEffect.Describe(active.Settings, active.Material, report);
+                }
+            }
+
+            Debug.Log(report.ToString());
         }
 
         void OnValidate()

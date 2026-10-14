@@ -36,6 +36,11 @@ Shader "JANOARG/Effects/Bloom"
 
             float computeGauss(float x, float sigma)
             {
+                // At zero sigma both the exponent and the divisor degenerate, and the whole kernel
+                // comes back NaN. The correct limit is the centre tap alone, which is what the
+                // caller gets anyway once the loop breaks on its first iteration.
+                if (sigma <= 1e-4) return x <= 0.0 ? 1.0 : 0.0;
+
                 return INV_SQRT_2PI * exp(-0.5 * x * x / (sigma * sigma)) / sigma;
             }
 
