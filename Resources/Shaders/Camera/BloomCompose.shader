@@ -29,6 +29,10 @@ Shader "JANOARG/Effects/BloomCompose"
 
             // Ordered dither on the sum. Without it the accumulating bloom bands badly in the
             // dark areas of a chart, which is most of them.
+            //
+            // _ScreenParams.xy times uv, rather than gl_FragCoord: Unity cross-compiles CG to
+            // GLSL on this platform and gl_FragCoord does not exist there. The shader fails to
+            // compile outright and Unity draws the whole pass with its magenta error shader.
             float dither(float2 uv)
             {
                 return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453) - 0.5;
@@ -38,7 +42,7 @@ Shader "JANOARG/Effects/BloomCompose"
             {
                 float3 scene = tex2D(_MainTex, i.uv).rgb;
                 float3 add   = tex2D(_AdditiveTex, i.uv).rgb;
-                float3 noise = dither(gl_FragCoord.xy) * _Strength * 5.0 / 255.0;
+                float3 noise = dither(i.uv * _ScreenParams.xy) * _Strength * 5.0 / 255.0;
 
                 // fluXis adds the whole blurred frame back ungated. That reads as a glow because
                 // a fluXis playfield is dark and the notes are the bright things on it. Here the
