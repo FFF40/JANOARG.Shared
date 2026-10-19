@@ -16,6 +16,8 @@ namespace JANOARG.Shared.Data.ChartInfo
         public PalleteManager                       PalleteManager = new();
         public CameraController                     Camera;
 
+        public Dictionary<BeatPosition, HitObjectManager> ObjectsAtTimes = new();
+
         public float CurrentSpeed;
         public float CurrentTime;
         public int[] HitObjectsRemaining = new int[2];
@@ -107,6 +109,8 @@ namespace JANOARG.Shared.Data.ChartInfo
 
             sr_GroupPos.End();
             sr_Lanes.Begin();
+
+            ObjectsAtTimes.Clear();
 
             for (var a = 0; a < CurrentChart.Lanes.Count; a++)
             {
@@ -1155,6 +1159,7 @@ namespace JANOARG.Shared.Data.ChartInfo
         public HitObject Current;
         public float     TimeStart;
         public float     TimeEnd;
+        public bool      IsSimultaneous;
 
         public Vector3    Position;
         public Quaternion Rotation;
@@ -1180,6 +1185,13 @@ namespace JANOARG.Shared.Data.ChartInfo
             Original = original;
             Current = current;
             TimeStart = main.Song.Timing.ToSeconds(current.Offset);
+
+            IsSimultaneous = false;
+            if (main.ObjectsAtTimes.ContainsKey(current.Offset))
+            {
+                main.ObjectsAtTimes[current.Offset].IsSimultaneous = IsSimultaneous = true;
+            }
+            main.ObjectsAtTimes[current.Offset] = this;
             
             // Calculate TimeEnd only once and cache the comparison
             bool isHoldNote = current.HoldLength > 0;
